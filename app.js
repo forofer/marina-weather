@@ -516,14 +516,14 @@ function rainText(rows) {
   const chance = maxPop >= 10 ? `סיכוי עד ${fmt(maxPop)}%` : 'סיכוי נמוך';
   return { t: `גשם אפשרי \u2066${pad2(wet[0].hour)}:00–${pad2(wet[wet.length - 1].hour + 1)}:00\u2069 (${fmt(mm, 1)} מ"מ, ${chance})`, wet: true };
 }
-function greenWindows(rows) {
+function greenWindows(rows, minLen = 1) {
   const out = []; let cur = null;
   for (const r of rows) {
     if (verdict(r).level === 0) { cur ? cur.end = r.hour : (cur = { start: r.hour, end: r.hour }); }
     else if (cur) { out.push(cur); cur = null; }
   }
   if (cur) out.push(cur);
-  return out.filter(w => w.end - w.start >= 1).sort((a, b) => (b.end - b.start) - (a.end - a.start));
+  return out.filter(w => w.end - w.start >= minLen - 1).sort((a, b) => (b.end - b.start) - (a.end - a.start));
 }
 
 function activeRows(date) {
@@ -540,8 +540,10 @@ function renderHero() {
   }
   const levels = rows.map(r => verdict(r).level);
   const green = levels.filter(l => l === 0).length / levels.length;
-  const lvl = green >= 0.5 ? 0 : (levels.every(l => l === 2) || levels.filter(l => l === 2).length / levels.length > 0.6 ? 2 : 1);
-  const wins = greenWindows(rows).slice(0, 2).sort((a, b) => a.start - b.start);
+  let lvl = green >= 0.5 ? 0 : (levels.every(l => l === 2) || levels.filter(l => l === 2).length / levels.length > 0.6 ? 2 : 1);
+  // חלון של שעה אחת נחשב כשנשארו מעט שעות; אחרת לפחות שעתיים רצופות
+  const wins = greenWindows(rows, rows.length <= 4 ? 1 : 2).slice(0, 2).sort((a, b) => a.start - b.start);
+  if (lvl === 0 && !wins.length) lvl = 1; // אין חלון טוב רצוף – לא מציגים "יוצאים"
   const winTxt = wins.length ? wins.map(w => `<bdi dir="ltr">${hm(w.start)}–${hm(w.end + 1)}</bdi>`).join(' , ') : 'אין שעות ירוקות';
 
   const vals = k => rows.map(r => r[k]).filter(v => v != null);
