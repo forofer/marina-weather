@@ -281,14 +281,16 @@ function daySummary(date) {
     const a = data.rows[i - 3], b = data.rows[i];
     if (a && b && a.pres != null && b.pres != null) maxDrop = Math.max(maxDrop, a.pres - b.pres);
   }
-  const dv = dayVerdict(activeRows(date));
+  const act = activeRows(date);
+  const late = date === nowLocal().slice(0, 10) && act.length < 2;
+  const dv = dayVerdict(act);
   const dayLevel = dv.lvl == null ? 1 : dv.lvl;
   best = dv.wins.length ? dv.wins[0] : null; // החלון הארוך ביותר
 
   return {
     maxWind: max(win, 'wind'), maxGust: max(win, 'gust'), maxWave: max(win, 'wave'),
     avgPer: avg(win, 'wavePer'), sst: avg(all, 'sst'), maxDrop,
-    thunder: all.some(r => r.code >= 95), best, dayLevel,
+    thunder: all.some(r => r.code >= 95), best, dayLevel, late,
     sun: data.daily[date]
   };
 }
@@ -300,9 +302,10 @@ function renderDays() {
   if (!selectedDate || !dates.includes(selectedDate)) selectedDate = dates[0];
   $('day-tabs').innerHTML = dates.map(d => {
     const l = dayLabel(d, today);
-    const lvl = daySummary(d).dayLevel;
-    return `<button class="day-tab ${d === selectedDate ? 'active' : ''}" data-date="${d}" aria-label="${l.name} – ${VERDICT[lvl].t}">
-      <span class="d">${vGlyph(lvl)} ${l.name}</span><span class="s">${l.sub}</span></button>`;
+    const ds = daySummary(d), lvl = ds.dayLevel;
+    const glyph = ds.late ? '<span class="vglyph vn" aria-hidden="true">☾</span>' : vGlyph(lvl);
+    return `<button class="day-tab ${d === selectedDate ? 'active' : ''}" data-date="${d}" aria-label="${l.name} – ${ds.late ? 'מאוחר מדי' : VERDICT[lvl].t}">
+      <span class="d">${glyph} ${l.name}</span><span class="s">${l.sub}</span></button>`;
   }).join('');
   $('day-tabs').querySelectorAll('.day-tab').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; renderAll(); }));
   // גלילה אופקית בשורת הימים בלבד – בלי להזיז את הדף
@@ -340,7 +343,7 @@ function renderSummary() {
 
   $('summary').innerHTML = `
     <div class="card ${vCls} ${nowCard ? '' : 'wide'}"><div class="k">${selectedDate === today ? 'הערכה מעכשיו עד השקיעה' : 'הערכה לשעות האור'}</div>
-      <div class="v">${vGlyph(s.dayLevel)} ${VERDICT[s.dayLevel].t}</div><div class="small">שעות טובות: <b>${best}</b></div></div>
+      <div class="v">${s.late ? '🌙 מאוחר מדי היום' : vGlyph(s.dayLevel) + ' ' + VERDICT[s.dayLevel].t}</div><div class="small">${s.late ? 'ראו את מחר' : s.best ? 'שעות טובות: <b>' + best + '</b>' : 'אין שעות טובות'}</div></div>
     ${nowCard}
     <div class="card"><div class="k">רוח מקס׳ · משבים מקס׳</div>
       <div class="v">${kt(s.maxWind)} · ${kt(s.maxGust)} <small>קשר</small></div>
@@ -620,7 +623,7 @@ function renderHero() {
   $('hero').innerHTML = `
     <div class="hero-badge" style="--c:${VCOL[lvl]}">
       <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].t}</div>
-      <div class="vs">${isToday ? 'נותרו היום' : 'שעות טובות'}: <b>${winTxt}</b></div>
+      <div class="vs">${wins.length ? `${isToday ? 'נותרו היום' : 'שעות טובות'}: <b>${winTxt}</b>` : '<b>אין שעות טובות ביום הזה</b>'}</div>
       ${reasons.length ? `<div class="vs why">${reasons.join(' · ')}</div>` : ''}
     </div>
     <div class="hero-lines">

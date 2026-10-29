@@ -406,3 +406,4 @@ body.modal-open { overflow: hidden; }
   .intro { padding: 8px 12px 0; }
   .foot .fl { min-height: 44px; width: 100%; }
 }
+.vglyph.vn { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
