@@ -632,7 +632,7 @@ function renderHero() {
     <div class="hero-lines">
       <div class="line"><span class="ic">${ICON.wind}</span><span>${dirChip(md)} <b>${range(mn('wind'), wMax)} קשר</b>, משבים עד <b>${fmt(gMax)}</b></span></div>
       <div class="line"><span class="ic">${ICON.wave}</span><span><b>גלים ${range(mn('wave'), wvMax, 1)} מ׳</b> · ${seaText(wvMax ?? 0)} · ${comfortText(wvMax, per)}</span></div>
-      <div class="line"><span class="ic">${skyIcon(statRows)}</span><span>${rain.t} · ${range(mn('temp'), mx('temp'))}°${sun ? ` · שקיעה <bdi dir="ltr">${sun.sunset.slice(11)}</bdi>` : ''}</span></div>
+      <div class="line"><span class="ic">${skyIcon(rows)}</span><span>${rain.t} · ${range(mn('temp'), mx('temp'))}°${sun ? ` · שקיעה <bdi dir="ltr">${sun.sunset.slice(11)}</bdi>` : ''}</span></div>
       ${warns.length ? `<div class="line warn"><span class="ic">${ICON.warn}</span><span>${warns.join(' · ')}</span></div>` : ''}
       <details class="skipper" id="skipper-details">
         <summary>פרטים לסקיפר</summary>
