@@ -631,7 +631,6 @@ function renderHero() {
   if (gMax != null && wMax != null && gMax - wMax >= 10) warns.push('רוח משבית – להכין ריף מראש');
   if (daySummary(selectedDate).maxDrop >= 3) warns.push('ירידת לחץ חדה – מערכת מתקרבת');
   if (rows.some(r => r.vis != null && r.vis < 4000)) warns.push('ראות מוגבלת');
-  if (wins.some(w => w.end + 1 > ssH + 0.25)) warns.push(`השקיעה ב-<bdi dir="ltr">${data.daily[selectedDate]?.sunset.slice(11) || ''}</bdi> – אחריה צריך אורות ניווט`);
   const first = rows.slice(0, Math.ceil(rows.length / 2)), last = rows.slice(Math.floor(rows.length / 2));
   const avgW = a => a.reduce((s, r) => s + (r.wind ?? 0), 0) / Math.max(1, a.length);
   let trend = '';
@@ -860,7 +859,11 @@ function seaSvg(r) {
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${seaFeel(r)}">${g}</svg>`;
 }
 
-function miniCompass(deg) {
+const FROM8 = ['מצפון', 'מצפון-מזרח', 'ממזרח', 'מדרום-מזרח', 'מדרום', 'מדרום-מערב', 'ממערב', 'מצפון-מערב'];
+const from8 = deg => deg == null ? '' : FROM8[Math.round(deg / 45) % 8];
+const rot = deg => `<span class="arrow" style="transform:rotate(${Math.round(deg)}deg)" aria-hidden="true">↓</span>`;
+
+function miniCompass(deg, waveDeg) {
   if (deg == null) return '';
   const C = 26, R = 22, coast = 20 * Math.PI / 180;
   const p1 = [C + Math.sin(coast) * R, C - Math.cos(coast) * R], p2 = [C - Math.sin(coast) * R, C + Math.cos(coast) * R];
@@ -868,6 +871,7 @@ function miniCompass(deg) {
     <circle cx="${C}" cy="${C}" r="${R}" fill="rgba(255,255,255,.92)" stroke="#0b2238" stroke-opacity=".25"/>
     <path d="M${p1[0]},${p1[1]} A${R},${R} 0 0 1 ${p2[0]},${p2[1]} Z" fill="#e6d3a8"/>
     <text x="${C}" y="10" font-size="8" font-weight="800" text-anchor="middle" fill="#0b2238">N</text>
+    ${waveDeg != null ? `<g transform="translate(${C} ${C}) rotate(${Math.round(waveDeg)})"><path d="M0,-15 L0,12 M-4,7 L0,13 L4,7" stroke="#1d8f8a" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-dasharray="3 2"/></g>` : ''}
     <g transform="translate(${C} ${C}) rotate(${Math.round(deg)})"><path d="M0,-15 L0,13 M-5,7 L0,14 L5,7" stroke="#0b2238" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
   </svg>`;
 }
@@ -885,20 +889,34 @@ function renderSeaCard() {
   const fromSea = d != null && Math.abs(((d - COAST_NORMAL) % 360 + 540) % 360 - 180) < 70;
   const fromLand = d != null && Math.abs(((d - COAST_NORMAL) % 360 + 540) % 360 - 180) > 110;
   const v = verdict(r);
+  // גשם בשעה הנבחרת ובשלוש השעות שאחריה
+  const next = data.rows.filter(x => x.t >= r.t).slice(0, 4);
+  const wetH = next.filter(x => (x.pop ?? 0) >= 25 || (x.rain ?? 0) >= RAIN_MM);
+  const maxPop = Math.max(0, ...next.map(x => x.pop ?? 0));
+  const rainSoon = wetH.length
+    ? { wet: true, t: `סיכוי לגשם ${fmt(maxPop)}% ב-<bdi dir="ltr">${hm(wetH[0].hour)}</bdi>` }
+    : { wet: false, t: `ללא גשם עד <bdi dir="ltr">${hm(Math.min(24, r.hour + 4))}</bdi>` };
+  const ssH = sunH(r.date, 'sunset'), sunset = data.daily[r.date]?.sunset.slice(11) || '';
+  const showSun = r.hour + 3 >= ssH && r.hour <= ssH + 4;
+  const afterSun = r.hour >= ssH;
   el.innerHTML = `
     <div class="sc">
       <div class="sc-art">${seaSvg(r)}
         <div class="sc-when">${isNow ? 'עכשיו' : whenWords(selectedDate)} · <bdi dir="ltr">${hm(r.hour)}</bdi>${isNight(r) ? ' ☾' : ''}</div>
-        <div class="sc-compass">${miniCompass(d)}</div>
+        <div class="sc-compass">${miniCompass(d, r.waveDir)}</div>
         <div class="sc-nums">
-          <div class="n"><span class="l">רוח</span><b><bdi dir="ltr">${fmt(r.wind)}</bdi></b><span class="u">קשר</span></div>
+          <div class="n"><span class="l">רוח</span><b><bdi dir="ltr">${fmt(r.wind)}</bdi></b><span class="u">קשר</span>${d != null ? rot(d) : ''}</div>
           <div class="n"><span class="l">משבים</span><b><bdi dir="ltr">${fmt(r.gust)}</bdi></b><span class="u">קשר</span></div>
-          <div class="n"><span class="l">גלים</span><b><bdi dir="ltr">${fmt(r.wave, 1)}</bdi></b><span class="u">מטר</span></div>
+          <div class="n"><span class="l">גלים</span><b><bdi dir="ltr">${fmt(r.wave, 1)}</bdi></b><span class="u">מטר</span>${r.waveDir != null ? rot(r.waveDir) : ''}</div>
         </div>
       </div>
       <div class="sc-cap">
         <span class="sc-feel">${vGlyph(v.level)} ${seaFeel(r)}</span>
-        <span class="muted">רוח ${from}${fromSea ? ' (מהים)' : fromLand ? ' (מהיבשה)' : ''}${(r.pop ?? 0) >= 30 ? ` · סיכוי לגשם ${fmt(r.pop)}%` : ''}</span>
+        <span class="sc-dirs">רוח ${from8(d)}${fromSea ? ' (מהים)' : fromLand ? ' (מהיבשה)' : ''} · גלים ${from8(r.waveDir)}</span>
+      </div>
+      <div class="sc-facts">
+        <span class="fact${rainSoon.wet ? ' wet' : ''}">${rainSoon.wet ? '🌧️' : '🌂'} ${rainSoon.t}</span>
+        ${showSun ? `<span class="fact">🌅 שקיעה <bdi dir="ltr">${sunset}</bdi>${afterSun ? ' · כבר חשוך' : ''}</span>` : ''}
       </div>
       <div class="sc-hours" role="tablist" aria-label="בחירת שעה">
         ${hours.map(h => { const x = byH.get(h); if (!x) return ''; const lv = verdict(x).level;

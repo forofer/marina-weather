@@ -420,11 +420,12 @@ body.modal-open { overflow: hidden; }
 .sc-art svg { display: block; width: 100%; height: 100%; }
 .sc-when { position: absolute; top: 8px; right: 10px; background: rgba(255,255,255,.9); color: #0b2238; font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 10px; }
 .sc-compass { position: absolute; top: 6px; left: 8px; }
-.sc-nums { position: absolute; inset: auto 8px 8px 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.sc-nums .n { background: rgba(255,255,255,.92); color: #0b2238; border-radius: 10px; padding: 3px 6px; display: flex; align-items: baseline; justify-content: center; gap: 4px; }
-.sc-nums .l { font-size: 12px; font-weight: 600; color: #3b5068; }
-.sc-nums b { font-size: 20px; font-weight: 900; line-height: 1.1; }
-.sc-nums .u { font-size: 11.5px; color: #3b5068; }
+.sc-nums { position: absolute; inset: auto 6px 6px 6px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.sc-nums .n { background: rgba(255,255,255,.92); color: #0b2238; border-radius: 10px; padding: 3px 4px; display: flex; align-items: baseline; justify-content: center; gap: 3px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.sc-nums .l { font-size: 11.5px; font-weight: 600; color: #3b5068; }
+.sc-nums b { font-size: 19px; font-weight: 900; line-height: 1.1; }
+.sc-nums .u { font-size: 11px; color: #3b5068; }
+@media (max-width: 380px) { .sc-nums .u { display: none; } }
 .sc-cap { display: flex; flex-direction: column; gap: 1px; }
 .sc-feel { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; }
 .sc-cap .muted { font-size: 13.5px; }
@@ -443,3 +444,8 @@ body.modal-open { overflow: hidden; }
 .sc-boat { animation: sc-bob var(--t) ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 90%; }
 .sc-wind line { animation: sc-windf var(--d) linear infinite; }
 @media (prefers-reduced-motion: reduce) { .sc-wave, .sc-boat, .sc-wind line { animation: none; } }
+.sc-nums .n .arrow { font-size: 16px; color: #0b2238; font-weight: 900; }
+.sc-dirs { font-size: 14px; color: var(--fg); font-weight: 600; }
+.sc-facts { display: flex; gap: 6px; flex-wrap: wrap; }
+.sc-facts .fact { display: inline-flex; align-items: center; gap: 5px; background: var(--panel-2); border-radius: 10px; padding: 5px 10px; font-size: 14px; font-weight: 600; }
+.sc-facts .fact.wet { background: color-mix(in srgb, var(--rain) 18%, var(--panel)); color: var(--fg); }
