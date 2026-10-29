@@ -83,7 +83,7 @@ function plainReasons(rows) {
   };
   return [...set].map(x => (map[x] || (() => x))());
 }
-const vGlyph = (lvl, big) => `<span class="vglyph v${lvl}${big ? ' big' : ''}" aria-hidden="true">${VERDICT[lvl].g}</span>`;
+const vGlyph = (lvl, big) => `<span class="vglyph v${lvl}${big ? ' big' : ''}" aria-hidden="true">${ico(['check', 'triangle-alert', 'x'][lvl], big ? 20 : 13)}</span>`;
 const ICON = { wind: '💨', wave: '🌊', rain: '🌧️', sun: '☀️', warn: '⚠️', live: '📡' };
 
 function wxIcon(code, isNight) {
@@ -326,7 +326,7 @@ function renderDays() {
     return `<button class="day-tab ${d === selectedDate ? 'active' : ''}" data-date="${d}" aria-label="${l.name} – ${ds.late ? 'מאוחר מדי' : VERDICT[lvl].t}">
       <span class="d">${glyph} ${l.name}</span><span class="s">${l.sub}</span></button>`;
   }).join('');
-  $('day-tabs').querySelectorAll('.day-tab').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; renderAll(); }));
+  $('day-tabs').querySelectorAll('.day-tab').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; seaHour = null; renderAll(); }));
   // גלילה אופקית בשורת הימים בלבד – בלי להזיז את הדף
   const act = $('day-tabs').querySelector('.day-tab.active'), bar = $('day-tabs');
   if (act) {
@@ -456,7 +456,7 @@ function renderTable() {
 
 function renderAll() {
   if (!data) return;
-  $('intro').innerHTML = `תחזית ים למרינה הרצליה: האם מתאים לצאת להפליג, ומה תפגוש בים.
+  $('intro').innerHTML = `<b>תחזית ים למרינה הרצליה:</b> האם מתאים לצאת להפליג, ומה תפגוש בים.
     <span class="legend-v">${vGlyph(0)} מתאים · ${vGlyph(1)} בזהירות · ${vGlyph(2)} לא מומלץ</span>
     <span class="muted">מתאים כשהרוח עד ${settings.maxWind} קשר, המשבים עד ${settings.maxGust} והגלים עד ${settings.maxWave} מ׳. אפשר לשנות בהגדרות ⚙️</span>`;
   $('loading').classList.add('hidden');
@@ -508,33 +508,32 @@ function meanDir(rows) {
   rows.forEach(r => { if (r.dir != null && r.wind != null) { x += Math.sin(r.dir * Math.PI / 180) * (r.wind + 0.1); y += Math.cos(r.dir * Math.PI / 180) * (r.wind + 0.1); } });
   return (x === 0 && y === 0) ? null : (Math.atan2(x, y) * 180 / Math.PI + 360) % 360;
 }
+// ניסוחים פשוטים – מה מרגישים בפועל
 function beaufortText(kt) {
-  if (kt < 1) return 'שקט מוחלט';
-  if (kt < 4) return 'משב קל מאוד';
-  if (kt < 7) return 'רוח קלה';
-  if (kt < 11) return 'רוח עדינה';
-  if (kt < 17) return 'רוח מתונה';
-  if (kt < 22) return 'רוח רעננה';
-  if (kt < 28) return 'רוח חזקה';
-  if (kt < 34) return 'רוח חזקה מאוד';
+  if (kt < 4) return 'כמעט בלי רוח';
+  if (kt < 8) return 'רוח חלשה';
+  if (kt < 12) return 'רוח נוחה';
+  if (kt < 17) return 'רוח טובה להפלגה';
+  if (kt < 22) return 'רוח חזקה';
+  if (kt < 28) return 'רוח חזקה מאוד';
   return 'סערה';
 }
-function seaText(h) { // סולם דאגלס
-  if (h < 0.1) return 'ים חלק כמראה';
-  if (h < 0.5) return 'ים רגוע';
-  if (h < 1.25) return 'ים נמוך עד בינוני';
-  if (h < 2.5) return 'ים בינוני–גבוה';
-  if (h < 4) return 'ים גבוה';
-  return 'ים גבוה מאוד';
+function seaText(h) {
+  if (h < 0.3) return 'ים שטוח';
+  if (h < 0.6) return 'גלים קטנים';
+  if (h < 1.0) return 'גלים בינוניים';
+  if (h < 1.5) return 'גלים גבוהים';
+  if (h < 2.5) return 'גלים גבוהים מאוד';
+  return 'ים סוער';
 }
 function comfortText(h, T) {
   if (h == null) return '';
-  if (h < 0.4) return 'נוח מאוד לאורחים';
-  if (T != null && T < 5 && h >= 0.7) return 'ים קצר ותלול – טלטולים, סיכוי לבחילה';
-  if (T != null && T >= 7 && h < 1.5) return 'סוֹול ארוך ורך – תנועה מתגלגלת';
-  if (h < 1) return 'נוח';
-  if (h < 1.6) return 'מורגש – עלול לגרום לבחילה לרגישים';
-  return 'קשה – לא נוח לאורחים';
+  if (h < 0.3) return 'כמעט בלי תנועה – נעים לכולם';
+  if (T != null && T < 5 && h >= 0.6) return 'גלים קצרים וצפופים – הסירה מטלטלת, עלול לגרום לבחילה';
+  if (h < 0.6) return 'תנועה קלה – נעים לכולם';
+  if (h < 1.0) return 'הסירה מתנדנדת – רוב האנשים מרגישים בסדר';
+  if (h < 1.5) return 'טלטולים – מי שרגיש לבחילה ירגיש לא טוב';
+  return 'טלטולים חזקים – לא מתאים לאורחים';
 }
 function sailAdvice(wind, gust) { // יאכטת מפרשים 12 מ'
   const w = wind ?? 0, g = gust ?? w;
@@ -611,7 +610,7 @@ function renderHero() {
   const wins = dv.wins.slice(0, 2).sort((a, b) => a.start - b.start);
   const ssH = sunH(selectedDate, 'sunset');
   const winTxt = wins.length ? wins.map(w => `<bdi dir="ltr">${hm(w.start)}–${hm(w.end + 1)}</bdi>`).join(' , ') +
-    (wins.some(w => w.end + 1 > ssH + 0.25) ? ' <span class="night-note">☾ כולל אחרי השקיעה</span>' : '') : 'אין שעות טובות';
+    (wins.some(w => w.end + 1 > ssH + 0.25) ? ' <span class="night-note">(גם אחרי השקיעה)</span>' : '') : 'אין שעות טובות';
   // כשיוצאים – המספרים מתארים את השעות הטובות עצמן
   const statRows = lvl === 0 && wins.length ? rows.filter(r => wins.some(w => r.hour >= w.start && r.hour <= w.end)) : rows;
   const vals = k => statRows.map(r => r[k]).filter(v => v != null);
@@ -631,7 +630,6 @@ function renderHero() {
   if (gMax != null && wMax != null && gMax - wMax >= 10) warns.push('רוח משבית – להכין ריף מראש');
   if (daySummary(selectedDate).maxDrop >= 3) warns.push('ירידת לחץ חדה – מערכת מתקרבת');
   if (rows.some(r => r.vis != null && r.vis < 4000)) warns.push('ראות מוגבלת');
-  if (wins.some(w => w.end + 1 > ssH + 0.25)) warns.push(`השקיעה ב-<bdi dir="ltr">${data.daily[selectedDate]?.sunset.slice(11) || ''}</bdi> – אחריה צריך אורות ניווט`);
   const first = rows.slice(0, Math.ceil(rows.length / 2)), last = rows.slice(Math.floor(rows.length / 2));
   const avgW = a => a.reduce((s, r) => s + (r.wind ?? 0), 0) / Math.max(1, a.length);
   let trend = '';
@@ -647,22 +645,21 @@ function renderHero() {
     <div class="hero-badge" style="--c:${VCOL[lvl]}">
       <div class="q">האם מתאים להפליג ${whenWords(selectedDate)}?</div>
       <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].long}</div>
-      <div class="why-plain">${lvl === 0 ? `${beaufortText(wMax ?? 0)} ו${seaText(wvMax ?? 0)}` : 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' ו')}</div>
+      <div class="why-plain">${lvl === 0 ? `${beaufortText(wMax ?? 0)}, ${seaText(wvMax ?? 0)}` : 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' ו')}</div>
       <div class="vs">${wins.length ? `${isToday ? 'השעות המתאימות שנותרו היום' : 'השעות המתאימות'}: <b>${winTxt}</b>` : '<b>אין שעות מתאימות ביום הזה</b>'}</div>
     </div>
+    <div class="sc-card"><div id="seacard"></div></div>
     <div class="hero-lines">
-      <div class="line"><span class="ic">${ICON.wind}</span><span>${dirChip(md)} <b>${range(mn('wind'), wMax)} קשר</b>, משבים עד <b>${fmt(gMax)}</b></span></div>
-      <div class="line"><span class="ic">${ICON.wave}</span><span><b>גלים ${range(mn('wave'), wvMax, 1)} מ׳</b> · ${seaText(wvMax ?? 0)} · ${comfortText(wvMax, per)}</span></div>
-      <div class="line"><span class="ic">${skyIcon(rows)}</span><span>${rain.t} · ${range(mn('temp'), mx('temp'))}°${sun ? ` · שקיעה <bdi dir="ltr">${sun.sunset.slice(11)}</bdi>` : ''}</span></div>
-      ${warns.length ? `<div class="line warn"><span class="ic">${ICON.warn}</span><span>${warns.join(' · ')}</span></div>` : ''}
+      ${warns.length ? `<div class="line warn"><span class="ic">${ico('triangle-alert', 18)}</span><span>${warns.join(' · ')}</span></div>` : ''}
       <details class="skipper" id="skipper-details">
         <summary>פרטים לסקיפר</summary>
-        <div class="line"><span class="ic">⛵</span><span style="color:${VTXT[sail.lvl]}"><b>מפרשים:</b> ${sail.t}</span></div>
-        <div class="line"><span class="ic">${ICON.wind}</span><span>${beaufortText(wMax ?? 0)}${trend ? ' · ' + trend : ''}${shift ? ' · <b class="shift">↻ ' + shift + '</b>' : ''}</span></div>
-        <div class="line"><span class="ic">${ICON.wave}</span><span>מחזור גלים ממוצע ${fmt(per, 0)} שניות · מים ${fmt(mx('sst'), 0)}°</span></div>
-        <div class="line"><span class="ic">🧭</span><span>${coastNote(md)}</span></div>
+        <div class="line"><span class="ic">${ico('sailboat', 18)}</span><span style="color:${VTXT[sail.lvl]}"><b>מפרשים:</b> ${sail.t}</span></div>
+        <div class="line"><span class="ic">${ico('wind', 18)}</span><span>${beaufortText(wMax ?? 0)}${trend ? ' · ' + trend : ''}${shift ? ' · <b class="shift">↻ ' + shift + '</b>' : ''}</span></div>
+        <div class="line"><span class="ic">${ico('waves', 18)}</span><span>מחזור גלים ממוצע ${fmt(per, 0)} שניות · מים ${fmt(mx('sst'), 0)}°</span></div>
+        <div class="line"><span class="ic">${ico('compass', 18)}</span><span>${coastNote(md)}</span></div>
       </details>
     </div>`;
+  renderSeaCard();
   const det = $('skipper-details');
   try { if (localStorage.getItem('skipperOpen') === '1') det.open = true; } catch (_) {}
   det.addEventListener('toggle', () => { try { localStorage.setItem('skipperOpen', det.open ? '1' : '0'); } catch (_) {} });
@@ -724,8 +721,9 @@ function renderTimeline(date = selectedDate, from = settings.hourFrom, to = sett
     if (r.wind != null) {
       const h = Math.max(3, windH * r.wind / windMax), gh = windH * (r.gust ?? r.wind) / windMax;
       const base = L.wind + windH, bw = Math.min(30, cw * 0.62);
-      const col = scaleColor(r.wind, WIND_STOPS);
-      g += `<rect x="${cx(i) - bw / 2}" y="${base - h}" width="${bw}" height="${h}" fill="${col}" rx="3"/>`;
+      const over = r.wind > settings.maxWind * 1.25 ? 2 : r.wind > settings.maxWind ? 1 : 0;
+      const col = over ? null : scaleColor(Math.min(r.wind, 16), WIND_STOPS);
+      g += `<rect x="${cx(i) - bw / 2}" y="${base - h}" width="${bw}" height="${h}" ${over ? `style="fill:${VCOL[over]}"` : `fill="${col}"`} rx="3"/>`;
       if (r.gust != null && r.gust > r.wind) {
         g += `<line x1="${cx(i)}" x2="${cx(i)}" y1="${base - h}" y2="${base - gh}" style="stroke:var(--gust)" stroke-width="1.5" stroke-dasharray="2 2"/>`;
         g += `<line x1="${cx(i) - bw / 2}" x2="${cx(i) + bw / 2}" y1="${base - gh}" y2="${base - gh}" style="stroke:var(--gust)" stroke-width="3" stroke-linecap="round"/>`;
@@ -789,6 +787,141 @@ function renderWeek() {
   $('week').querySelectorAll('tr[data-date]').forEach(tr => tr.addEventListener('click', () => {
     selectedDate = tr.dataset.date; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' });
   }));
+}
+
+/* ===================== כרטיס ים – אינפוגרפיקה חיה ===================== */
+let seaHour = null; // null = השעה הנוכחית (להיום) או שעה ברירת מחדל ליום אחר
+
+function seaDefaultHour(date) {
+  const now = nowLocal();
+  if (date === now.slice(0, 10)) return Math.max(settings.hourFrom, Math.min(settings.hourTo, +now.slice(11, 13)));
+  const dv = dayVerdict(activeRows(date));
+  return dv.wins.length ? Math.max(dv.wins[0].start, Math.min(10, dv.wins[0].end)) : 10;
+}
+
+function seaFeel(r) {
+  return comfortText(r.wave ?? 0, r.wavePer);
+}
+
+function crestPath(W, base, A, L, phase) { // קו קצף לאורך פסגות הגל
+  let d = '';
+  for (let x = 0; x <= W + L; x += 4) d += `${d ? ' L' : 'M'}${x} ${(base - A * Math.sin(2 * Math.PI * (x + phase) / L)).toFixed(1)}`;
+  return d;
+}
+function wavePath(W, base, A, L, phase) {
+  let d = `M0 ${base + 40} L0 ${base}`;
+  for (let x = 0; x <= W + L; x += 4) d += ` L${x} ${(base - A * Math.sin(2 * Math.PI * (x + phase) / L)).toFixed(1)}`;
+  return d + ` L${W + L} ${base + 40} Z`;
+}
+
+function seaSvg(r) {
+  const W = 360, H = 92, base = 60;
+  const night = isNight(r);
+  const h = Math.min(r.wave ?? 0, 3), T = Math.max(3, Math.min(r.wavePer ?? 6, 12));
+  const A = 1.5 + h * 6;                     // גובה הגל בציור
+  const L = 30 + T * T * 2.2;                // אורך גל לפי מחזור
+  const w = r.wind ?? 0;
+  const heel = Math.min(28, w * 1.3);        // הטיית הסירה
+  const bob = Math.min(2.5, Math.max(1, A * 0.25));
+  const wet = (r.pop ?? 0) >= 30 || (r.rain ?? 0) >= RAIN_MM;
+  const cloudy = (r.cloud ?? 0) >= 60;
+  // שמיים בהירים מול ים כהה – ניגודיות ברורה גם בלילה
+  const sky = night ? ['#3a5a8c', '#7d97c2'] : cloudy ? ['#c3ced9', '#eef2f6'] : ['#9fd4f7', '#eaf6fd'];
+  const sea = night ? ['#0a2440', '#04121f'] : ['#1b6fae', '#0b3f6b'];
+  const far = night ? '#24456d' : '#6fb2dc';
+  const foam = night ? '#cfe6ff' : '#ffffff';
+  let g = `<defs>
+    <linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
+    <linearGradient id="se" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sea[0]}"/><stop offset="1" stop-color="${sea[1]}"/></linearGradient>
+  </defs><rect width="${W}" height="${H}" fill="url(#sk)"/>`;
+  if (night) g += `<circle cx="238" cy="24" r="9" fill="#f3f0d8"/><circle cx="242" cy="21" r="8.5" fill="${sky[0]}"/>`;
+  else if (!cloudy) g += `<circle cx="238" cy="24" r="10" fill="#ffc83a"/><circle cx="238" cy="24" r="15" fill="#ffc83a" opacity=".3"/>`;
+  if (cloudy || wet) g += `<g fill="${night ? '#3c4d6b' : '#f4f7fa'}" opacity=".95"><ellipse cx="226" cy="27" rx="24" ry="9"/><ellipse cx="241" cy="21" rx="15" ry="10"/><ellipse cx="212" cy="24" rx="13" ry="8"/></g>`;
+  if (wet) { let rr = ''; for (let i = 0; i < 7; i++) rr += `<line x1="${210 + i * 6}" y1="${37 + (i % 3) * 3}" x2="${206 + i * 6}" y2="${49 + (i % 3) * 3}"/>`; g += `<g stroke="#7fb0e0" stroke-width="1.6" stroke-linecap="round">${rr}</g>`; }
+  const n = w < 8 ? 0 : Math.min(7, Math.round((w - 4) / 3));
+  const dur = Math.max(0.9, 4.5 - w * 0.15).toFixed(2);
+  let streaks = '';
+  for (let i = 0; i < n; i++) {
+    const y = 10 + (i * 23) % 34, len = 14 + (i * 11) % 18, x = (i * 71) % W;
+    streaks += `<line x1="${x}" y1="${y}" x2="${x + len}" y2="${y}" style="animation-delay:-${(i * 0.37).toFixed(2)}s"/>`;
+  }
+  g += `<g class="sc-wind" stroke="${night ? '#9fb7d8' : '#ffffff'}" stroke-width="1.4" stroke-linecap="round" opacity=".6" style="--d:${dur}s">${streaks}</g>`;
+  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(10 + T).toFixed(1)}s"><path d="${wavePath(W, base - 5, A * 0.6, L * 0.8, 0)}" fill="${far}"/></g>`;
+  const hull = `<path d="M-26 0 L26 0 L19 9 L-19 9 Z" fill="#ff7a45"/>`;
+  const sails = `<path d="M2 -52 L2 -2 L28 -2 Z" fill="#fff" stroke="#2b3d52" stroke-width="1.6" stroke-linejoin="round"/><path d="M-2 -44 L-2 -2 L-22 -2 Z" fill="#f4f7fa" stroke="#2b3d52" stroke-width="1.6" stroke-linejoin="round"/><line x1="0" y1="-54" x2="0" y2="0" stroke="#2b3d52" stroke-width="2.4"/>`;
+  g += `<g transform="translate(150 ${(base - 3 - A * 0.6).toFixed(1)}) scale(.62)"><g class="sc-boat" style="--b:${(bob / .62).toFixed(1)}px;--h:${heel.toFixed(0)}deg;--t:${(T * 0.9).toFixed(1)}s">${sails}${hull}</g></g>`;
+  const fp = wavePath(W, base + 3, A, L, L / 3);
+  const crest = crestPath(W, base + 3, A, L, L / 3);
+  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(9 + T).toFixed(1)}s"><path d="${fp}" fill="url(#se)"/><path d="${crest}" fill="none" stroke="${foam}" stroke-width="2" stroke-linecap="round" opacity=".9"/></g>`;
+  g += `<g class="sc-wave" style="--L:${(L * 1.2).toFixed(0)}px;--t:${(12 + T).toFixed(1)}s"><path d="${wavePath(W, base + 16, A * 0.5, L * 1.2, L / 2)}" fill="${sea[1]}" opacity=".7"/></g>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${seaFeel(r)}">${g}</svg>`;
+}
+
+const FROM8 = ['מצפון', 'מצפון-מזרח', 'ממזרח', 'מדרום-מזרח', 'מדרום', 'מדרום-מערב', 'ממערב', 'מצפון-מערב'];
+const from8 = deg => deg == null ? '' : FROM8[Math.round(deg / 45) % 8];
+const rot = deg => `<svg class="sarrow" width="14" height="14" viewBox="0 0 24 24" style="transform:rotate(${Math.round(deg)}deg)" aria-hidden="true"><path d="M12 3v17M5 13l7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function miniCompass(deg, waveDeg) {
+  if (deg == null) return '';
+  const C = 28, R = 25;
+  return `<svg viewBox="0 0 56 56" width="56" height="56" aria-hidden="true">
+    <circle cx="${C}" cy="${C}" r="${R}" fill="rgba(255,255,255,.92)" stroke="rgba(11,34,56,.15)"/>
+    <text x="${C}" y="13" font-size="10" font-weight="700" text-anchor="middle" fill="#0b2238" font-family="Rubik, Heebo, sans-serif">N</text>
+    ${waveDeg != null ? `<g transform="translate(${C} ${C}) rotate(${Math.round(waveDeg)})"><path d="M0,-11 L0,10 M-4,5 L0,10 L4,5" stroke="#0f8f8a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 2"/></g>` : ''}
+    <g transform="translate(${C} ${C}) rotate(${Math.round(deg)})"><path d="M0,-16 L0,15 M-6,8 L0,15 L6,8" stroke="#0b2238" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>
+  </svg>`;
+}
+
+function renderSeaCard() {
+  const el = $('seacard'); if (!el || !data) return;
+  const hours = []; for (let h = settings.hourFrom; h <= settings.hourTo; h++) hours.push(h);
+  const byH = new Map(data.rows.filter(r => r.date === selectedDate).map(r => [r.hour, r]));
+  const nowT = nowLocal();
+  if (seaHour == null || !byH.has(seaHour)) seaHour = seaDefaultHour(selectedDate);
+  const r = byH.get(seaHour);
+  if (!r) { el.innerHTML = ''; return; }
+  const isNow = r.t.slice(0, 13) === nowT.slice(0, 13);
+  const d = r.dir, from = d == null ? '' : dir8(d);
+  const fromSea = d != null && Math.abs(((d - COAST_NORMAL) % 360 + 540) % 360 - 180) < 70;
+  const fromLand = d != null && Math.abs(((d - COAST_NORMAL) % 360 + 540) % 360 - 180) > 110;
+  const v = verdict(r);
+  // גשם בשעה הנבחרת ובשלוש השעות שאחריה
+  const next = data.rows.filter(x => x.t >= r.t).slice(0, 4);
+  const wetH = next.filter(x => (x.pop ?? 0) >= 25 || (x.rain ?? 0) >= RAIN_MM);
+  const maxPop = Math.max(0, ...next.map(x => x.pop ?? 0));
+  const rainSoon = wetH.length
+    ? { wet: true, t: `סיכוי לגשם ${fmt(maxPop)}% ב-<bdi dir="ltr">${hm(wetH[0].hour)}</bdi>` }
+    : { wet: false, t: `אין גשם עד <bdi dir="ltr">${hm(Math.min(24, r.hour + 4))}</bdi>` };
+  const ssH = sunH(r.date, 'sunset'), sunset = data.daily[r.date]?.sunset.slice(11) || '';
+  const showSun = r.hour >= 14 && r.hour + 3 >= ssH && r.hour <= ssH + 4;
+  const afterSun = r.hour >= ssH;
+  el.innerHTML = `
+    <div class="sc">
+      <div class="sc-art">${seaSvg(r)}
+        <div class="sc-when">${isNow ? 'עכשיו' : whenWords(selectedDate)} · <bdi dir="ltr">${hm(r.hour)}</bdi>${isNight(r) ? ' ☾' : ''}</div>
+        <div class="sc-compass">${miniCompass(d, r.waveDir)}</div>
+      </div>
+      <div class="sc-nums">
+          <div class="n"><span class="l">רוח</span><b><bdi dir="ltr">${fmt(r.wind)}</bdi></b><span class="u">קשר</span>${d != null ? rot(d) : ''}</div>
+          <div class="n"><span class="l">משבים</span><b><bdi dir="ltr">${fmt(r.gust)}</bdi></b><span class="u">קשר</span></div>
+          <div class="n"><span class="l">גלים</span><b><bdi dir="ltr">${fmt(r.wave, 1)}</bdi></b><span class="u">מטר</span>${r.waveDir != null ? rot(r.waveDir) : ''}</div>
+        </div>
+      <div class="sc-cap">
+        <span class="sc-feel">${seaFeel(r)}</span>
+        <span class="sc-dirs">רוח ${from8(d)}${fromSea ? ' (מהים)' : fromLand ? ' (מהיבשה)' : ''} · גלים ${from8(r.waveDir)}</span>
+      </div>
+      <div class="sc-facts">
+        <span class="fact${rainSoon.wet ? ' wet' : ''}">${ico(rainSoon.wet ? 'cloud-rain' : 'cloud-off', 16)} <span class="ft">${rainSoon.t}</span></span>
+        ${showSun ? `<span class="fact">${ico('sunset', 16)} <span class="ft">שקיעה <bdi dir="ltr">${sunset}</bdi></span></span>` : ''}
+      </div>
+      <div class="sc-hours" role="tablist" aria-label="בחירת שעה">
+        ${hours.map(h => { const x = byH.get(h); if (!x) return ''; const lv = verdict(x).level;
+          return `<button class="sh${h === seaHour ? ' on' : ''}${isNight(x) ? ' nt' : ''}" data-h="${h}" role="tab" aria-selected="${h === seaHour}"><span class="hh">${pad2(h)}</span><i class="d${lv}"></i></button>`; }).join('')}
+      </div>
+    </div>`;
+  el.querySelectorAll('.sh').forEach(b => b.addEventListener('click', () => { seaHour = +b.dataset.h; renderSeaCard(); }));
+  const on = el.querySelector('.sh.on'), bar = el.querySelector('.sc-hours');
+  if (on && bar) { const a = on.getBoundingClientRect(), c = bar.getBoundingClientRect(); bar.scrollLeft += (a.left + a.width / 2) - (c.left + c.width / 2); }
 }
 
 /* ===================== תכנון הפלגה ===================== */
@@ -1104,7 +1237,7 @@ function onPlanChange() {
 /* ===================== טעינה ===================== */
 async function load(force) {
   const btn = $('refresh-btn');
-  btn.disabled = true; btn.innerHTML = '⏳ <span class="btxt">טוען…</span>';
+  btn.disabled = true; btn.classList.add('spin');
   const cacheKey = 'cache_v4';
   const cached = await store.get('local', cacheKey);
   const sameLoc = cached && cached.loc === locKey();
@@ -1112,7 +1245,7 @@ async function load(force) {
 
   if (!force && cached && sameLoc && Date.now() - cached.data.fetchedAt < CACHE_MAX_AGE) {
     showBanner(cached.data.errors?.join(' · '), false);
-    btn.disabled = false; btn.innerHTML = '🔄 <span class="btxt">רענן</span>';
+    btn.disabled = false; btn.classList.remove('spin');
     return;
   }
   try {
@@ -1124,7 +1257,7 @@ async function load(force) {
     if (data) showBanner(`אין חיבור – מוצג מידע שמור. (${e.message})`, true);
     else { showBanner(`שגיאה בטעינת התחזית: ${e.message}`, true); $('loading').textContent = 'לא הצלחתי לטעון תחזית.'; }
   } finally {
-    btn.disabled = false; btn.innerHTML = '🔄 <span class="btxt">רענן</span>';
+    btn.disabled = false; btn.classList.remove('spin');
   }
 }
 const locKey = () => [settings.windLat, settings.windLon, settings.waveLat, settings.waveLon].join(',');
@@ -1302,13 +1435,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'ArrowRight') $('prev-day').click();
   });
 
+  document.querySelectorAll('[data-ico]').forEach(el => { el.innerHTML = ico(el.dataset.ico, +(el.dataset.s || 20)); });
+  // הסבר קצר – מוצג רק בביקור הראשון, ואפשר לפתוח שוב בכפתור ⓘ
+  const introBox = $('intro-box');
+  let seen = false; try { seen = localStorage.getItem('introSeen') === '1'; } catch (_) {}
+  if (!seen) introBox.classList.remove('hidden');
+  $('intro-close').addEventListener('click', () => { introBox.classList.add('hidden'); try { localStorage.setItem('introSeen', '1'); } catch (_) {} });
+  $('info-btn').addEventListener('click', () => introBox.classList.toggle('hidden'));
   // מצב בהיר / כהה: מערכת → בהיר → כהה
   const themeBtn = $('theme-btn');
   if (themeBtn) {
     const setTheme = th => {
       if (th) document.documentElement.setAttribute('data-theme', th); else document.documentElement.removeAttribute('data-theme');
       try { th ? localStorage.setItem('theme', th) : localStorage.removeItem('theme'); } catch (_) {}
-      themeBtn.textContent = th === 'light' ? '☀️' : th === 'dark' ? '🌙' : '🌓';
+      themeBtn.innerHTML = ico(th === 'light' ? 'sun' : th === 'dark' ? 'moon' : 'sun-moon');
       themeBtn.title = th === 'light' ? 'מצב בהיר (לחץ לכהה)' : th === 'dark' ? 'מצב כהה (לחץ לאוטומטי)' : 'אוטומטי לפי המכשיר (לחץ לבהיר)';
       if (data) renderAll();
     };
