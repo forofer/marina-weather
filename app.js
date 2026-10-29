@@ -604,11 +604,17 @@ function svgArrow(cx, cy, deg, size, color) {
   return `<g transform="translate(${cx.toFixed(1)},${cy.toFixed(1)}) rotate(${Math.round(deg)})"><path d="M0,${-s} L0,${s} M${-s * 0.55},${s * 0.35} L0,${s} L${s * 0.55},${s * 0.35}" style="stroke:${color}" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`;
 }
 
+// רוחב אזור התצוגה, גם כשהמסך מוסתר כרגע (אז clientWidth הוא 0)
+function boxWidth(id) {
+  const w = $(id) ? $(id).clientWidth : 0;
+  return w || Math.min(776, (document.documentElement.clientWidth || 800) - 24);
+}
+
 function renderTimeline(date = selectedDate, from = settings.hourFrom, to = settings.hourTo, target = 'timeline') {
   let rows = data.rows.filter(r => r.date === date && r.hour >= from && r.hour <= to);
   if (!rows.length) { $(target).innerHTML = ''; return; }
   // בטלפון: הגרף מתאים את עצמו לרוחב המסך, ואם צפוף מדי – מציג כל שעתיים
-  const box = $(target).clientWidth || 776;
+  const box = boxWidth(target);
   const narrow = box < 640;
   if (narrow && rows.length > 9) rows = rows.filter((r, i) => i % 2 === 0);
   const W = narrow ? Math.max(320, box - 20) : 776, LBL = narrow ? 54 : 78, n = rows.length, cw = (W - LBL) / n;
@@ -680,7 +686,7 @@ function renderTimeline(date = selectedDate, from = settings.hourFrom, to = sett
 function renderWeek() {
   const today = nowLocal().slice(0, 10);
   const dates = [...new Set(data.rows.map(r => r.date))].filter(d => d >= today);
-  const narrow = ($('week').clientWidth || 800) < 640;
+  const narrow = boxWidth('week') < 640;
   const step = narrow ? 2 : 1;
   const hours = []; for (let h = settings.hourFrom; h <= settings.hourTo; h += step) hours.push(h);
   const nowT = nowLocal();
@@ -1064,6 +1070,7 @@ function showView(v) {
   $('days-nav').classList.toggle('hidden', v === 'windy' || v === 'plan');
   store.set('local', 'view_v3', v);
   track('view-' + v);
+  if ((v === 'plan' || v === 'brief') && data) renderAll();
   if (v === 'windy') { const u = windyUrl(); if ($('windy-frame').src !== u) $('windy-frame').src = u; }
 }
 

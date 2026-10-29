@@ -260,6 +260,7 @@ table.fc tr.sep td { height: 6px; padding: 0; }
 .st .v { font-size: 19px; font-weight: 900; }
 .st .v small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .st .sub2 { font-size: 12px; color: var(--muted); }
+.st .dirchip { max-width: 100%; overflow: hidden; }
 .p-reasons { font-size: 13.5px; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 7px 10px; font-weight: 600; }
 .p-reasons.ok { background: color-mix(in srgb, var(--go) 14%, var(--panel)); color: var(--fg); }
 .p-comfort { font-size: 13px; color: var(--muted); padding: 0 2px; }
@@ -354,6 +355,8 @@ table.fc tr.sep td { height: 6px; padding: 0; }
   .p-top { grid-template-columns: 1fr; padding: 6px 12px; }
   .p-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .st .v { font-size: 17px; }
+  .st .dirchip small { display: none; }
+  .st .dirchip { padding: 1px 6px; font-size: 12.5px; }
   .route { margin: 6px 12px; }
   .route-grid { grid-template-columns: 1fr; justify-items: center; }
   .p-dr { grid-template-columns: 1fr; width: 100%; }
