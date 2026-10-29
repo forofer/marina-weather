@@ -289,8 +289,13 @@ function renderDays() {
       <span class="d">${vGlyph(lvl)} ${l.name}</span><span class="s">${l.sub}</span></button>`;
   }).join('');
   $('day-tabs').querySelectorAll('.day-tab').forEach(b => b.addEventListener('click', () => { selectedDate = b.dataset.date; renderAll(); }));
-  const act = $('day-tabs').querySelector('.day-tab.active');
-  if (act && act.scrollIntoView) try { act.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (_) {}
+  // גלילה אופקית בשורת הימים בלבד – בלי להזיז את הדף
+  const act = $('day-tabs').querySelector('.day-tab.active'), bar = $('day-tabs');
+  if (act) {
+    const a = act.getBoundingClientRect(), b = bar.getBoundingClientRect();
+    if (a.left < b.left) bar.scrollLeft -= (b.left - a.left) + 8;
+    else if (a.right > b.right) bar.scrollLeft += (a.right - b.right) + 8;
+  }
   const i = dates.indexOf(selectedDate);
   $('prev-day').disabled = i <= 0;
   $('next-day').disabled = i >= dates.length - 1;
@@ -1243,6 +1248,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && data && Date.now() - data.fetchedAt > CACHE_MAX_AGE) load(true);
   });
-  let rT; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => data && renderAll(), 200); });
+  // מציירים מחדש רק כשהרוחב באמת משתנה (סיבוב מסך) – לא כשסרגל הכתובת בטלפון נעלם/מופיע בזמן גלילה
+  let rT, lastW = window.innerWidth;
+  window.addEventListener('resize', () => {
+    if (Math.abs(window.innerWidth - lastW) < 2) return;
+    lastW = window.innerWidth;
+    clearTimeout(rT); rT = setTimeout(() => data && renderAll(), 250);
+  });
   load(false);
 });
