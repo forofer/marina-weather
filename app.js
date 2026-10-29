@@ -64,7 +64,25 @@ function ink(hex) { // צבע טקסט קריא על רקע נתון
   const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
   return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0d141c' : '#ffffff';
 }
-const VERDICT = [{ t: 'יוצאים', g: '✓' }, { t: 'בזהירות', g: '!' }, { t: 'לא יוצאים', g: '✕' }];
+const VERDICT = [{ t: 'מתאים להפלגה', g: '✓', long: 'כן, מתאים להפלגה' }, { t: 'אפשר, בזהירות', g: '!', long: 'אפשר, אבל בזהירות' }, { t: 'לא מומלץ', g: '✕', long: 'לא מומלץ להפליג' }];
+// "האם מתאים להפליג מחר?" / "...בשבת?" / "...ביום ראשון?"
+function whenWords(date) {
+  const l = dayLabel(date, nowLocal().slice(0, 10)).name;
+  return l === 'היום' || l === 'מחר' ? l : l === 'שבת' ? 'בשבת' : 'ביום ' + l;
+}
+// סיבות בשפה פשוטה, עם המספר הרלוונטי
+function plainReasons(rows) {
+  const set = new Set(); rows.forEach(r => verdict(r).reasons.forEach(x => set.add(x)));
+  const mx = k => Math.max(...rows.map(r => r[k] ?? 0));
+  const map = {
+    'גלים מעל הסף': () => `גלים גבוהים, עד ${fmt(mx('wave'), 1)} מ׳`,
+    'משבים מעל הסף': () => `משבי רוח חזקים, עד ${fmt(mx('gust'))} קשר`,
+    'רוח מעל הסף': () => `רוח חזקה, עד ${fmt(mx('wind'))} קשר`,
+    'ים קצר ותלול': () => 'ים קצר ומטלטל',
+    'סופת רעמים': () => 'סופת רעמים', 'סיכון לרעמים': () => 'סיכון לרעמים', 'ראות נמוכה': () => 'ראות נמוכה'
+  };
+  return [...set].map(x => (map[x] || (() => x))());
+}
 const vGlyph = (lvl, big) => `<span class="vglyph v${lvl}${big ? ' big' : ''}" aria-hidden="true">${VERDICT[lvl].g}</span>`;
 const ICON = { wind: '💨', wave: '🌊', rain: '🌧️', sun: '☀️', warn: '⚠️', live: '📡' };
 
@@ -438,7 +456,9 @@ function renderTable() {
 
 function renderAll() {
   if (!data) return;
-  $('intro').innerHTML = `האם כדאי לצאת לים ממרינה הרצליה, ומה מחכה שם. <span class="muted">יוצאים כשהרוח עד ${settings.maxWind} קשר, המשבים עד ${settings.maxGust} והגלים עד ${settings.maxWave} מ׳. אפשר לשנות בהגדרות ⚙️</span>`;
+  $('intro').innerHTML = `תחזית ים למרינה הרצליה: האם מתאים לצאת להפליג, ומה תפגוש בים.
+    <span class="legend-v">${vGlyph(0)} מתאים · ${vGlyph(1)} בזהירות · ${vGlyph(2)} לא מומלץ</span>
+    <span class="muted">מתאים כשהרוח עד ${settings.maxWind} קשר, המשבים עד ${settings.maxGust} והגלים עד ${settings.maxWave} מ׳. אפשר לשנות בהגדרות ⚙️</span>`;
   $('loading').classList.add('hidden');
   renderDays();
   renderHero();
@@ -625,9 +645,10 @@ function renderHero() {
 
   $('hero').innerHTML = `
     <div class="hero-badge" style="--c:${VCOL[lvl]}">
-      <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].t}</div>
-      <div class="vs">${wins.length ? `${isToday ? 'נותרו היום' : 'שעות טובות'}: <b>${winTxt}</b>` : '<b>אין שעות טובות ביום הזה</b>'}</div>
-      ${reasons.length ? `<div class="vs why">${reasons.join(' · ')}</div>` : ''}
+      <div class="q">האם מתאים להפליג ${whenWords(selectedDate)}?</div>
+      <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].long}</div>
+      <div class="why-plain">${lvl === 0 ? `${beaufortText(wMax ?? 0)} ו${seaText(wvMax ?? 0)}` : 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' ו')}</div>
+      <div class="vs">${wins.length ? `${isToday ? 'השעות המתאימות שנותרו היום' : 'השעות המתאימות'}: <b>${winTxt}</b>` : '<b>אין שעות מתאימות ביום הזה</b>'}</div>
     </div>
     <div class="hero-lines">
       <div class="line"><span class="ic">${ICON.wind}</span><span>${dirChip(md)} <b>${range(mn('wind'), wMax)} קשר</b>, משבים עד <b>${fmt(gMax)}</b></span></div>
@@ -904,7 +925,7 @@ function planText(p, rows, s, lvl) {
   const course = COURSES.find(c => c.v === p.course)?.t || '';
   return [
     `⛵ הפלגה ממרינה הרצליה – ${l.name} ${l.sub.replace(/^\S+ /, '')}, \u2066${hm(p.from)}–${hm(p.to)}\u2069${p.course ? ' · ' + course : ''}`,
-    `מצב: ${['✅ יוצאים', '⚠️ אפשר – בזהירות', '⛔ לא מומלץ'][lvl]}`,
+    `${['✅ מתאים להפלגה', '⚠️ אפשר, אבל בזהירות', '⛔ לא מומלץ להפליג'][lvl]}`,
     `🌬️ רוח ${dir8(s.md)} ${range(s.wMin, s.wMax)} קשר, משבים עד ${fmt(s.gMax)}`,
     `🌊 גלים ${range(s.wvMin, s.wvMax, 1)} מ', מחזור ${fmt(s.per)} שנ' – ${seaText(s.wvMax ?? 0)}`,
     `${s.wet ? '🌧️' : '☀️'} ${s.rainT} · ${range(s.tMin, s.tMax)}°C · מים ${fmt(s.sst)}°C`,
@@ -1010,7 +1031,8 @@ function renderPlan() {
   out.innerHTML = `
     <div class="p-top">
       <div class="hero-badge" style="--c:${VCOL[lvl]}">
-        <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].t}</div>
+        <div class="q">ההפלגה שתכננת:</div>
+        <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].long}</div>
         <div class="vs">${l.name} · <bdi dir="ltr">${hm(plan.from)}–${hm(plan.to)}</bdi> · <span style="white-space:nowrap">${dur === 1 ? 'שעה' : dur + ' שעות'}</span></div>
         ${conf ? `<div class="conf" title="${conf.d}" style="--cc:${conf.c}">ביטחון בתחזית: <b>${conf.t}</b></div>` : ''}
       </div>
