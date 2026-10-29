@@ -803,6 +803,11 @@ function seaFeel(r) {
   return comfortText(r.wave ?? 0, r.wavePer);
 }
 
+function crestPath(W, base, A, L, phase) { // קו קצף לאורך פסגות הגל
+  let d = '';
+  for (let x = 0; x <= W + L; x += 4) d += `${d ? ' L' : 'M'}${x} ${(base - A * Math.sin(2 * Math.PI * (x + phase) / L)).toFixed(1)}`;
+  return d;
+}
 function wavePath(W, base, A, L, phase) {
   let d = `M0 ${base + 40} L0 ${base}`;
   for (let x = 0; x <= W + L; x += 4) d += ` L${x} ${(base - A * Math.sin(2 * Math.PI * (x + phase) / L)).toFixed(1)}`;
@@ -820,16 +825,19 @@ function seaSvg(r) {
   const bob = Math.min(2.5, Math.max(1, A * 0.25));
   const wet = (r.pop ?? 0) >= 30 || (r.rain ?? 0) >= RAIN_MM;
   const cloudy = (r.cloud ?? 0) >= 60;
-  const sky = night ? ['#0d1b33', '#22365a'] : cloudy ? ['#9fb3c6', '#d7e1ea'] : ['#5fb2ee', '#cfe9fb'];
-  const sea = night ? ['#163a5c', '#0b2238'] : ['#2f8fcf', '#145a8c'];
+  // שמיים בהירים מול ים כהה – ניגודיות ברורה גם בלילה
+  const sky = night ? ['#3a5a8c', '#7d97c2'] : cloudy ? ['#c3ced9', '#eef2f6'] : ['#9fd4f7', '#eaf6fd'];
+  const sea = night ? ['#0a2440', '#04121f'] : ['#1b6fae', '#0b3f6b'];
+  const far = night ? '#24456d' : '#6fb2dc';
+  const foam = night ? '#cfe6ff' : '#ffffff';
   let g = `<defs>
     <linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
     <linearGradient id="se" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sea[0]}"/><stop offset="1" stop-color="${sea[1]}"/></linearGradient>
   </defs><rect width="${W}" height="${H}" fill="url(#sk)"/>`;
-  if (night) g += `<circle cx="318" cy="22" r="9" fill="#f3f0d8"/><circle cx="322" cy="19" r="8.5" fill="${sky[0]}"/>`;
-  else if (!cloudy) g += `<circle cx="318" cy="22" r="10" fill="#ffd54a"/><circle cx="318" cy="22" r="15" fill="#ffd54a" opacity=".25"/>`;
-  if (cloudy || wet) g += `<g fill="${night ? '#3c4d6b' : '#f4f7fa'}" opacity=".95"><ellipse cx="292" cy="24" rx="24" ry="9"/><ellipse cx="307" cy="18" rx="15" ry="10"/><ellipse cx="278" cy="21" rx="13" ry="8"/></g>`;
-  if (wet) { let rr = ''; for (let i = 0; i < 7; i++) rr += `<line x1="${276 + i * 6}" y1="${34 + (i % 3) * 3}" x2="${272 + i * 6}" y2="${46 + (i % 3) * 3}"/>`; g += `<g stroke="#7fb0e0" stroke-width="1.6" stroke-linecap="round">${rr}</g>`; }
+  if (night) g += `<circle cx="238" cy="24" r="9" fill="#f3f0d8"/><circle cx="242" cy="21" r="8.5" fill="${sky[0]}"/>`;
+  else if (!cloudy) g += `<circle cx="238" cy="24" r="10" fill="#ffc83a"/><circle cx="238" cy="24" r="15" fill="#ffc83a" opacity=".3"/>`;
+  if (cloudy || wet) g += `<g fill="${night ? '#3c4d6b' : '#f4f7fa'}" opacity=".95"><ellipse cx="226" cy="27" rx="24" ry="9"/><ellipse cx="241" cy="21" rx="15" ry="10"/><ellipse cx="212" cy="24" rx="13" ry="8"/></g>`;
+  if (wet) { let rr = ''; for (let i = 0; i < 7; i++) rr += `<line x1="${210 + i * 6}" y1="${37 + (i % 3) * 3}" x2="${206 + i * 6}" y2="${49 + (i % 3) * 3}"/>`; g += `<g stroke="#7fb0e0" stroke-width="1.6" stroke-linecap="round">${rr}</g>`; }
   const n = w < 8 ? 0 : Math.min(7, Math.round((w - 4) / 3));
   const dur = Math.max(0.9, 4.5 - w * 0.15).toFixed(2);
   let streaks = '';
@@ -838,11 +846,13 @@ function seaSvg(r) {
     streaks += `<line x1="${x}" y1="${y}" x2="${x + len}" y2="${y}" style="animation-delay:-${(i * 0.37).toFixed(2)}s"/>`;
   }
   g += `<g class="sc-wind" stroke="${night ? '#9fb7d8' : '#ffffff'}" stroke-width="1.4" stroke-linecap="round" opacity=".6" style="--d:${dur}s">${streaks}</g>`;
-  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(10 + T).toFixed(1)}s"><path d="${wavePath(W, base - 5, A * 0.6, L * 0.8, 0)}" fill="url(#se)" opacity=".45"/></g>`;
+  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(10 + T).toFixed(1)}s"><path d="${wavePath(W, base - 5, A * 0.6, L * 0.8, 0)}" fill="${far}"/></g>`;
   const hull = `<path d="M-26 0 L26 0 L19 9 L-19 9 Z" fill="#ff7a45"/>`;
-  const sails = `<path d="M2 -52 L2 -2 L28 -2 Z" fill="#fff"/><path d="M-2 -44 L-2 -2 L-22 -2 Z" fill="#f2f6fa"/><line x1="0" y1="-54" x2="0" y2="0" stroke="#334" stroke-width="2"/>`;
+  const sails = `<path d="M2 -52 L2 -2 L28 -2 Z" fill="#fff" stroke="#2b3d52" stroke-width="1.6" stroke-linejoin="round"/><path d="M-2 -44 L-2 -2 L-22 -2 Z" fill="#f4f7fa" stroke="#2b3d52" stroke-width="1.6" stroke-linejoin="round"/><line x1="0" y1="-54" x2="0" y2="0" stroke="#2b3d52" stroke-width="2.4"/>`;
   g += `<g transform="translate(150 ${(base - 3 - A * 0.6).toFixed(1)}) scale(.62)"><g class="sc-boat" style="--b:${(bob / .62).toFixed(1)}px;--h:${heel.toFixed(0)}deg;--t:${(T * 0.9).toFixed(1)}s">${sails}${hull}</g></g>`;
-  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(9 + T).toFixed(1)}s"><path d="${wavePath(W, base + 3, A, L, L / 3)}" fill="url(#se)"/></g>`;
+  const fp = wavePath(W, base + 3, A, L, L / 3);
+  const crest = crestPath(W, base + 3, A, L, L / 3);
+  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(9 + T).toFixed(1)}s"><path d="${fp}" fill="url(#se)"/><path d="${crest}" fill="none" stroke="${foam}" stroke-width="2" stroke-linecap="round" opacity=".9"/></g>`;
   g += `<g class="sc-wave" style="--L:${(L * 1.2).toFixed(0)}px;--t:${(12 + T).toFixed(1)}s"><path d="${wavePath(W, base + 16, A * 0.5, L * 1.2, L / 2)}" fill="${sea[1]}" opacity=".7"/></g>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${seaFeel(r)}">${g}</svg>`;
 }

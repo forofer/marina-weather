@@ -513,8 +513,6 @@ b, .v, .wn, .sc-nums b, .hh, table td, table th, .t-h, .t-v, .t-g, .t-w, .t-p, .
 .sh.nt::before { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .sh.on { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
 @keyframes sc-bob { 0%,100% { transform: translateY(0) rotate(calc(var(--h) * -1)); } 50% { transform: translateY(var(--b)) rotate(calc(var(--h) * -1 + 2deg)); } }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sc-art > svg { filter: brightness(.85) saturate(.9); } }
-:root[data-theme="dark"] .sc-art > svg { filter: brightness(.85) saturate(.9); }
 
 /* מפת שבוע במצב כהה – ירוק רגוע, בעיות בולטות */
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) table.wk td.c0 { background: color-mix(in srgb, var(--go) 28%, var(--panel)); color: var(--fg); } }
