@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=3.10">
+  <link rel="stylesheet" href="app.css?v=3.11">
 </head>
 <body class="web">
 <div class="app">
@@ -42,6 +42,7 @@
     <button id="view-windy" class="seg" title="מפת Windy"><span class="ti">🗺️</span><span class="tl">מפה</span></button>
   </nav>
 
+  <p class="intro" id="intro">האם כדאי לצאת לים ממרינה הרצליה, ומה מחכה שם – רוח, גלים וגשם לפי שעות.</p>
   <div id="banner" class="banner hidden"></div>
 
   <nav class="days" id="days-nav">
@@ -89,11 +90,13 @@
       <button class="seg" data-overlay="waves">🌊 גלים</button>
       <button class="seg" data-overlay="swell1">〰️ סוֹול</button>
     </div>
-    <iframe id="windy-frame" title="Windy"></iframe>
+    <div class="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe></div>
+    <p class="arrow-note">לגלילת הדף – גלול מחוץ למפה.</p>
   </main>
 
   <!-- הגדרות -->
-  <section id="settings" class="settings hidden">
+  <section id="settings" class="settings hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="sheet-head"><h2 id="settings-title">הגדרות</h2><button id="settings-close" class="icon-btn" aria-label="סגור הגדרות">✕</button></div>
     <h3>מתי זה "יוצאים"?</h3>
     <div class="grid">
       <label>רוח עד (קשר)<input type="number" id="s-maxWind" step="1" min="1" inputmode="numeric"></label>
@@ -110,7 +113,7 @@
       </label>
       <label class="check"><input type="checkbox" id="s-showModels"> השוואת מודלים בטבלה <bdi dir="ltr">(ECMWF / ICON / GFS)</bdi></label>
     </div>
-    <h3>נקודות תחזית</h3>
+    <details class="adv" id="adv-points"><summary>מתקדם: מאיפה נלקחת התחזית (מפה)</summary>
     <details class="adv"><summary>קואורדינטות מדויקות</summary>
     <div class="grid">
       <label>רוח – קו רוחב<input type="number" id="s-windLat" step="0.001"></label>
@@ -128,6 +131,7 @@
     <div id="pt-map" class="pt-map"></div>
     <div id="pt-info" class="pt-info"></div>
     <p class="muted small">החזאי מחשב את התחזית לפי משבצת רשת (תא מודל). העיגול המקווקו הוא מרכז התא שהמודל באמת השתמש בו. כדי שהתחזית תייצג את הים, גם הנקודה וגם התא צריכים להיות בים, קרוב לאזור שבו אתה מפליג בדרך כלל.</p>
+    </details>
     <div class="settings-actions">
       <button id="settings-reset">ברירת מחדל</button>
       <button id="settings-save" class="primary">שמור</button>
@@ -135,15 +139,15 @@
   </section>
 
   <footer class="foot">
-    <a href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים – השירות המטאורולוגי</a>
-    <a href="https://isramar.ocean.org.il/isramar2009/Hadera" target="_blank" rel="noopener">מצוף חדרה – מדידה בפועל</a>
-    <a id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a>
+    <a class="fl" href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים – השירות המטאורולוגי</a>
+    <a class="fl" href="https://isramar.ocean.org.il/isramar2009/Hadera" target="_blank" rel="noopener">מצוף חדרה – מדידה בפועל</a>
+    <a class="fl" id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a>
     <span class="muted small attribution">נתונים: <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a> · ECMWF · DWD · NOAA</span>
   </footer>
 
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="app.js?v=3.10"></script>
+  <script src="app.js?v=3.11"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
