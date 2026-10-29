@@ -5,7 +5,7 @@ const DEFAULTS = {
   windLat: 32.165, windLon: 34.785,   // מרינה הרצליה
   waveLat: 32.170, waveLon: 34.760,   // ים פתוח ~2.5 ק"מ מערבית למרינה
   maxWind: 16, maxGust: 22, maxWave: 1.3, minPeriod: 5,
-  hourFrom: 6, hourTo: 19, step: 1, showModels: true
+  hourFrom: 6, hourTo: 21, step: 1, showModels: true
 };
 const TZ = 'Asia/Jerusalem';
 const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 דקות
@@ -241,7 +241,8 @@ function isNight(r) {
 
 // שעה "שמישה" להפלגה: באור יום, ומסתיימת לכל המאוחר כרבע שעה אחרי השקיעה
 function sunH(date, k) { const d = data.daily[date]; return d ? +d[k].slice(11, 13) + d[k].slice(14, 16) / 60 : (k === 'sunset' ? 17.5 : 6); }
-function sailable(r) { return !isNight(r) && r.hour + 1 <= sunH(r.date, 'sunset') + 0.25; }
+// גם שעות ערב ולילה נחשבות – ההחלטה לפי רוח, משבים וגלים. החושך רק מסומן (☾) ומזכיר אורות ניווט.
+function sailable(r) { return true; }
 
 // החלטה אחת לכל האתר (לשוניות ימים, סיכום, פירוט, מפת שבוע)
 function dayVerdict(rows) {
@@ -343,7 +344,7 @@ function renderSummary() {
 
   $('summary').innerHTML = `
     <div class="card ${vCls} ${nowCard ? '' : 'wide'}"><div class="k">${selectedDate === today ? 'הערכה מעכשיו עד השקיעה' : 'הערכה לשעות האור'}</div>
-      <div class="v">${s.late ? '🌙 מאוחר מדי היום' : vGlyph(s.dayLevel) + ' ' + VERDICT[s.dayLevel].t}</div><div class="small">${s.late ? 'ראו את מחר' : s.best ? 'שעות טובות: <b>' + best + '</b>' : 'אין שעות טובות'}</div></div>
+      <div class="v">${s.late ? '🌙 היום נגמר' : vGlyph(s.dayLevel) + ' ' + VERDICT[s.dayLevel].t}</div><div class="small">${s.late ? 'ראו את מחר' : s.best ? 'שעות טובות: <b>' + best + '</b>' : 'אין שעות טובות'}</div></div>
     ${nowCard}
     <div class="card"><div class="k">רוח מקס׳ · משבים מקס׳</div>
       <div class="v">${kt(s.maxWind)} · ${kt(s.maxGust)} <small>קשר</small></div>
@@ -403,7 +404,6 @@ function renderTable() {
   let html = `<table class="fc"><thead><tr>${rows.map(r => `<th class="${isNight(r) ? 'night' : ''}${r.t === nowT ? ' now-col' : ''}">${String(r.hour).padStart(2, '0')}</th>`).join('')}<th class="lbl">שעה</th></tr></thead><tbody>`;
 
   html += tr('מצב', r => {
-    if (isNight(r)) return { cls: 'v-night', html: '🌙', title: 'לילה' };
     const v = verdict(r); return { cls: v.cls + ' vcell', html: VERDICT[v.level].g, title: v.reasons.join(', ') || 'תקין' };
   });
   html += tr('מזג אוויר', r => wxIcon(r.code, isNight(r)));
@@ -581,15 +581,17 @@ function renderHero() {
   if (rows.length < 2) {
     const dates = [...new Set(data.rows.map(r => r.date))];
     const next = dates[dates.indexOf(selectedDate) + 1];
-    $('hero').innerHTML = `<div class="hero-badge late" style="--c:var(--muted)"><div class="vt">🌙 מאוחר מדי ליציאה היום</div>
-      <div class="vs">נשארו פחות משעתיים של אור יום</div>${next ? '<button id="go-next" class="primary">לתחזית של מחר ←</button>' : ''}</div>`;
+    $('hero').innerHTML = `<div class="hero-badge late" style="--c:var(--muted)"><div class="vt">🌙 היום נגמר</div>
+      <div class="vs">טווח השעות שלך מסתיים ב-<bdi dir="ltr">${hm(settings.hourTo + 1)}</bdi>. אפשר להאריך אותו בהגדרות ⚙️</div>${next ? '<button id="go-next" class="primary">לתחזית של מחר ←</button>' : ''}</div>`;
     if (next) $('go-next').addEventListener('click', () => { selectedDate = next; renderAll(); window.scrollTo(0, 0); });
     return;
   }
   const dv = dayVerdict(rows);
   const lvl = dv.lvl;
   const wins = dv.wins.slice(0, 2).sort((a, b) => a.start - b.start);
-  const winTxt = wins.length ? wins.map(w => `<bdi dir="ltr">${hm(w.start)}–${hm(w.end + 1)}</bdi>`).join(' , ') : 'אין שעות טובות';
+  const ssH = sunH(selectedDate, 'sunset');
+  const winTxt = wins.length ? wins.map(w => `<bdi dir="ltr">${hm(w.start)}–${hm(w.end + 1)}</bdi>`).join(' , ') +
+    (wins.some(w => w.end + 1 > ssH + 0.25) ? ' <span class="night-note">☾ כולל אחרי השקיעה</span>' : '') : 'אין שעות טובות';
   // כשיוצאים – המספרים מתארים את השעות הטובות עצמן
   const statRows = lvl === 0 && wins.length ? rows.filter(r => wins.some(w => r.hour >= w.start && r.hour <= w.end)) : rows;
   const vals = k => statRows.map(r => r[k]).filter(v => v != null);
@@ -609,6 +611,7 @@ function renderHero() {
   if (gMax != null && wMax != null && gMax - wMax >= 10) warns.push('רוח משבית – להכין ריף מראש');
   if (daySummary(selectedDate).maxDrop >= 3) warns.push('ירידת לחץ חדה – מערכת מתקרבת');
   if (rows.some(r => r.vis != null && r.vis < 4000)) warns.push('ראות מוגבלת');
+  if (wins.some(w => w.end + 1 > ssH + 0.25)) warns.push(`השקיעה ב-<bdi dir="ltr">${data.daily[selectedDate]?.sunset.slice(11) || ''}</bdi> – אחריה צריך אורות ניווט`);
   const first = rows.slice(0, Math.ceil(rows.length / 2)), last = rows.slice(Math.floor(rows.length / 2));
   const avgW = a => a.reduce((s, r) => s + (r.wind ?? 0), 0) / Math.max(1, a.length);
   let trend = '';
@@ -694,8 +697,8 @@ function renderTimeline(date = selectedDate, from = settings.hourFrom, to = sett
     g += `<text x="${cx(i)}" y="12" class="t-h">${pad2(r.hour)}</text>`;
     // מצב – מיד מתחת לשעה
     const v = verdict(r), night = isNight(r);
-    g += `<g><title>${night ? 'לילה' : (v.reasons.join(', ') || 'תקין')}</title><rect x="${x(i) + 1.5}" y="${L.verdict}" width="${cw - 3}" height="19" rx="4" style="fill:${night ? 'var(--panel-2)' : VCOL[v.level]}"/>
-      <text x="${cx(i)}" y="${L.verdict + 14.5}" class="t-vg" style="fill:${night ? 'var(--muted)' : v.level === 1 ? '#1a1300' : '#fff'}">${night ? '☾' : VERDICT[v.level].g}</text></g>`;
+    g += `<g><title>${(night ? 'לילה · ' : '') + (v.reasons.join(', ') || 'תקין')}</title><rect x="${x(i) + 1.5}" y="${L.verdict}" width="${cw - 3}" height="19" rx="4" style="fill:${VCOL[v.level]}" opacity="${night ? 0.7 : 1}"/>
+      <text x="${cx(i)}" y="${L.verdict + 14.5}" class="t-vg" style="fill:${v.level === 1 ? '#1a1300' : '#fff'}">${VERDICT[v.level].g}</text></g>`;
     g += `<text x="${cx(i)}" y="${L.wx + 20}" class="t-wx">${wxIcon(r.code, isNight(r))}</text>`;
     // רוח: עמודה = רוח, קו כתום = משב
     if (r.wind != null) {
@@ -753,9 +756,9 @@ function renderWeek() {
       const v = verdict(r);
       const past = r.t.slice(0, 13) < nowT.slice(0, 13) ? ' past' : '';
       const inTrip = trips.some(t => t.date === d && h >= t.from && h < t.to) ? ' trip-cell' : '';
-      const cls = isNight(r) ? 'cn' : 'c' + v.level;
+      const cls = 'c' + v.level + (isNight(r) ? ' night' : '');
       return `<td class="${cls}${past}${inTrip}" title="${pad2(h)}:00 · רוח ${fmt(r.wind)} משבים ${fmt(r.gust)} קשר ${dir8(r.dir)} · גל ${fmt(r.wave, 1)} מ׳${(r.pop ?? 0) >= 30 ? ' · גשם ' + r.pop + '%' : ''}${v.reasons.length ? ' · ' + v.reasons.join(', ') : ''}">
-        ${isNight(r) ? '<span class="vg">☾</span>' : v.level ? `<span class="vg">${VERDICT[v.level].g}</span>` : ''}<span class="wa">${arrow(r.dir)}</span><span class="wn">${fmt(r.wind)}</span>${(r.pop ?? 0) >= 40 ? '<span class="rd">💧</span>' : ''}</td>`;
+        ${v.level ? `<span class="vg">${VERDICT[v.level].g}</span>` : ''}${isNight(r) ? '<span class="mn">☾</span>' : ''}<span class="wa">${arrow(r.dir)}</span><span class="wn">${fmt(r.wind)}</span>${(r.pop ?? 0) >= 40 ? '<span class="rd">💧</span>' : ''}</td>`;
     }).join('');
     html += `<td class="wl"><b>${l.name}</b><span class="muted small">${l.sub.replace(/^\S+ /, '')}</span></td>`;
     if (!narrow) html += `<td class="ws">${fmt(s.maxWind)}·${fmt(s.maxGust)} קשר · ${fmt(s.maxWave, 1)} מ׳</td>`;
