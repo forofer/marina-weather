@@ -892,7 +892,13 @@ function renderPlan() {
   const nowT = nowLocal();
   const out = $('p-result');
   if (!rows.length) { out.innerHTML = '<div class="loading">אין תחזית לטווח הזה</div>'; return; }
-  if (rows[rows.length - 1].t < nowT.slice(0, 13)) { out.innerHTML = '<div class="loading">הזמן הזה כבר עבר – בחר זמן עתידי</div>'; return; }
+  if (rows[rows.length - 1].t.slice(0, 13) < nowT.slice(0, 13)) {
+    // הזמן עבר – עוברים אוטומטית לאותן שעות ביום הבא
+    const dates = [...new Set(data.rows.map(r => r.date))];
+    const next = dates[dates.indexOf(plan.date) + 1];
+    if (next) { plan = { ...plan, date: next }; fillPlanForm(); return renderPlan(); }
+    out.innerHTML = '<div class="loading">הזמן הזה כבר עבר – בחר זמן עתידי</div>'; return;
+  }
 
   const vals = k => rows.map(r => r[k]).filter(v => v != null);
   const mn = k => vals(k).length ? Math.min(...vals(k)) : null, mx = k => vals(k).length ? Math.max(...vals(k)) : null;
