@@ -662,7 +662,6 @@ function renderHero() {
         <div class="line"><span class="ic">${ICON.wave}</span><span>מחזור גלים ממוצע ${fmt(per, 0)} שניות · מים ${fmt(mx('sst'), 0)}°</span></div>
         <div class="line"><span class="ic">🧭</span><span>${coastNote(md)}</span></div>
       </details>
-      <a class="buoy" href="https://isramar.ocean.org.il/isramar2009/Hadera" target="_blank" rel="noopener">${ICON.live} בדוק מצב ים בפועל – מצוף חדרה</a>
     </div>`;
   const det = $('skipper-details');
   try { if (localStorage.getItem('skipperOpen') === '1') det.open = true; } catch (_) {}
