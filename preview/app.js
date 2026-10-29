@@ -508,33 +508,32 @@ function meanDir(rows) {
   rows.forEach(r => { if (r.dir != null && r.wind != null) { x += Math.sin(r.dir * Math.PI / 180) * (r.wind + 0.1); y += Math.cos(r.dir * Math.PI / 180) * (r.wind + 0.1); } });
   return (x === 0 && y === 0) ? null : (Math.atan2(x, y) * 180 / Math.PI + 360) % 360;
 }
+// ניסוחים פשוטים – מה מרגישים בפועל
 function beaufortText(kt) {
-  if (kt < 1) return 'שקט מוחלט';
-  if (kt < 4) return 'משב קל מאוד';
-  if (kt < 7) return 'רוח קלה';
-  if (kt < 11) return 'רוח עדינה';
-  if (kt < 17) return 'רוח מתונה';
-  if (kt < 22) return 'רוח רעננה';
-  if (kt < 28) return 'רוח חזקה';
-  if (kt < 34) return 'רוח חזקה מאוד';
+  if (kt < 4) return 'כמעט בלי רוח';
+  if (kt < 8) return 'רוח חלשה';
+  if (kt < 12) return 'רוח נוחה';
+  if (kt < 17) return 'רוח טובה להפלגה';
+  if (kt < 22) return 'רוח חזקה';
+  if (kt < 28) return 'רוח חזקה מאוד';
   return 'סערה';
 }
-function seaText(h) { // סולם דאגלס
-  if (h < 0.1) return 'ים חלק כמראה';
-  if (h < 0.5) return 'ים רגוע';
-  if (h < 1.25) return 'ים נמוך עד בינוני';
-  if (h < 2.5) return 'ים בינוני–גבוה';
-  if (h < 4) return 'ים גבוה';
-  return 'ים גבוה מאוד';
+function seaText(h) {
+  if (h < 0.3) return 'ים שטוח';
+  if (h < 0.6) return 'גלים קטנים';
+  if (h < 1.0) return 'גלים בינוניים';
+  if (h < 1.5) return 'גלים גבוהים';
+  if (h < 2.5) return 'גלים גבוהים מאוד';
+  return 'ים סוער';
 }
 function comfortText(h, T) {
   if (h == null) return '';
-  if (h < 0.4) return 'נוח מאוד לאורחים';
-  if (T != null && T < 5 && h >= 0.7) return 'ים קצר ותלול – טלטולים, סיכוי לבחילה';
-  if (T != null && T >= 7 && h < 1.5) return 'סוֹול ארוך ורך – תנועה מתגלגלת';
-  if (h < 1) return 'נוח';
-  if (h < 1.6) return 'מורגש – עלול לגרום לבחילה לרגישים';
-  return 'קשה – לא נוח לאורחים';
+  if (h < 0.3) return 'כמעט בלי תנועה – נעים לכולם';
+  if (T != null && T < 5 && h >= 0.6) return 'גלים קצרים וצפופים – הסירה מטלטלת, עלול לגרום לבחילה';
+  if (h < 0.6) return 'תנועה קלה – נעים לכולם';
+  if (h < 1.0) return 'הסירה מתנדנדת – רוב האנשים מרגישים בסדר';
+  if (h < 1.5) return 'טלטולים – מי שרגיש לבחילה ירגיש לא טוב';
+  return 'טלטולים חזקים – לא מתאים לאורחים';
 }
 function sailAdvice(wind, gust) { // יאכטת מפרשים 12 מ'
   const w = wind ?? 0, g = gust ?? w;
@@ -611,7 +610,7 @@ function renderHero() {
   const wins = dv.wins.slice(0, 2).sort((a, b) => a.start - b.start);
   const ssH = sunH(selectedDate, 'sunset');
   const winTxt = wins.length ? wins.map(w => `<bdi dir="ltr">${hm(w.start)}–${hm(w.end + 1)}</bdi>`).join(' , ') +
-    (wins.some(w => w.end + 1 > ssH + 0.25) ? ' <span class="night-note">☾ כולל אחרי השקיעה</span>' : '') : 'אין שעות טובות';
+    (wins.some(w => w.end + 1 > ssH + 0.25) ? ' <span class="night-note">(גם אחרי השקיעה)</span>' : '') : 'אין שעות טובות';
   // כשיוצאים – המספרים מתארים את השעות הטובות עצמן
   const statRows = lvl === 0 && wins.length ? rows.filter(r => wins.some(w => r.hour >= w.start && r.hour <= w.end)) : rows;
   const vals = k => statRows.map(r => r[k]).filter(v => v != null);
@@ -646,7 +645,7 @@ function renderHero() {
     <div class="hero-badge" style="--c:${VCOL[lvl]}">
       <div class="q">האם מתאים להפליג ${whenWords(selectedDate)}?</div>
       <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].long}</div>
-      <div class="why-plain">${lvl === 0 ? `${beaufortText(wMax ?? 0)} ו${seaText(wvMax ?? 0)}` : 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' ו')}</div>
+      <div class="why-plain">${lvl === 0 ? `${beaufortText(wMax ?? 0)}, ${seaText(wvMax ?? 0)}` : 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' ו')}</div>
       <div class="vs">${wins.length ? `${isToday ? 'השעות המתאימות שנותרו היום' : 'השעות המתאימות'}: <b>${winTxt}</b>` : '<b>אין שעות מתאימות ביום הזה</b>'}</div>
     </div>
     <div class="sc-card"><div id="seacard"></div></div>
@@ -801,15 +800,7 @@ function seaDefaultHour(date) {
 }
 
 function seaFeel(r) {
-  const w = r.wind ?? 0, h = r.wave ?? 0, T = r.wavePer ?? 6;
-  const wind = w < 4 ? 'כמעט בלי רוח' : w < 8 ? 'רוח קלה ונעימה' : w < 14 ? 'רוח נעימה' : w < 19 ? 'רוח חזקה' : 'רוח חזקה מאוד';
-  let sea;
-  if (h < 0.4) sea = 'ים רגוע';
-  else if (h < 0.8) sea = T < 5 ? 'ים קצת מטלטל' : 'ים נוח';
-  else if (h < 1.3) sea = T < 5 ? 'ים מטלטל' : 'ים מורגש';
-  else if (h < 2) sea = 'ים גבוה ומטלטל';
-  else sea = 'ים סוער';
-  return `${sea}, ${wind}`;
+  return comfortText(r.wave ?? 0, r.wavePer);
 }
 
 function wavePath(W, base, A, L, phase) {
@@ -819,14 +810,14 @@ function wavePath(W, base, A, L, phase) {
 }
 
 function seaSvg(r) {
-  const W = 360, H = 170, base = 112;
+  const W = 360, H = 92, base = 60;
   const night = isNight(r);
   const h = Math.min(r.wave ?? 0, 3), T = Math.max(3, Math.min(r.wavePer ?? 6, 12));
-  const A = 2 + h * 9;                       // גובה הגל בציור
+  const A = 1.5 + h * 6;                     // גובה הגל בציור
   const L = 30 + T * T * 2.2;                // אורך גל לפי מחזור
   const w = r.wind ?? 0;
   const heel = Math.min(28, w * 1.3);        // הטיית הסירה
-  const bob = Math.min(3, Math.max(1, A * 0.25));
+  const bob = Math.min(2.5, Math.max(1, A * 0.25));
   const wet = (r.pop ?? 0) >= 30 || (r.rain ?? 0) >= RAIN_MM;
   const cloudy = (r.cloud ?? 0) >= 60;
   const sky = night ? ['#0d1b33', '#22365a'] : cloudy ? ['#9fb3c6', '#d7e1ea'] : ['#5fb2ee', '#cfe9fb'];
@@ -835,28 +826,24 @@ function seaSvg(r) {
     <linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
     <linearGradient id="se" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sea[0]}"/><stop offset="1" stop-color="${sea[1]}"/></linearGradient>
   </defs><rect width="${W}" height="${H}" fill="url(#sk)"/>`;
-  // שמש / ירח / ענן
-  if (night) g += `<circle cx="300" cy="34" r="13" fill="#f3f0d8"/><circle cx="306" cy="30" r="12" fill="${sky[0]}"/>`;
-  else if (!cloudy) g += `<circle cx="300" cy="36" r="16" fill="#ffd54a"/><circle cx="300" cy="36" r="24" fill="#ffd54a" opacity=".25"/>`;
-  if (cloudy || wet) g += `<g fill="${night ? '#3c4d6b' : '#f4f7fa'}" opacity=".95"><ellipse cx="270" cy="38" rx="34" ry="13"/><ellipse cx="292" cy="30" rx="22" ry="14"/><ellipse cx="250" cy="34" rx="18" ry="11"/></g>`;
-  if (wet) { let rr = ''; for (let i = 0; i < 9; i++) rr += `<line x1="${236 + i * 8}" y1="${52 + (i % 3) * 4}" x2="${230 + i * 8}" y2="${70 + (i % 3) * 4}"/>`; g += `<g class="sc-rain" stroke="#7fb0e0" stroke-width="2" stroke-linecap="round">${rr}</g>`; }
-  // פסי רוח – כמות ומהירות לפי עוצמה
-  const n = w < 8 ? 0 : Math.min(8, Math.round((w - 4) / 2.5));
+  if (night) g += `<circle cx="318" cy="22" r="9" fill="#f3f0d8"/><circle cx="322" cy="19" r="8.5" fill="${sky[0]}"/>`;
+  else if (!cloudy) g += `<circle cx="318" cy="22" r="10" fill="#ffd54a"/><circle cx="318" cy="22" r="15" fill="#ffd54a" opacity=".25"/>`;
+  if (cloudy || wet) g += `<g fill="${night ? '#3c4d6b' : '#f4f7fa'}" opacity=".95"><ellipse cx="292" cy="24" rx="24" ry="9"/><ellipse cx="307" cy="18" rx="15" ry="10"/><ellipse cx="278" cy="21" rx="13" ry="8"/></g>`;
+  if (wet) { let rr = ''; for (let i = 0; i < 7; i++) rr += `<line x1="${276 + i * 6}" y1="${34 + (i % 3) * 3}" x2="${272 + i * 6}" y2="${46 + (i % 3) * 3}"/>`; g += `<g stroke="#7fb0e0" stroke-width="1.6" stroke-linecap="round">${rr}</g>`; }
+  const n = w < 8 ? 0 : Math.min(7, Math.round((w - 4) / 3));
   const dur = Math.max(0.9, 4.5 - w * 0.15).toFixed(2);
   let streaks = '';
   for (let i = 0; i < n; i++) {
-    const y = 18 + (i * 37) % 70, len = 18 + (i * 13) % 26, x = (i * 71) % W;
+    const y = 10 + (i * 23) % 34, len = 14 + (i * 11) % 18, x = (i * 71) % W;
     streaks += `<line x1="${x}" y1="${y}" x2="${x + len}" y2="${y}" style="animation-delay:-${(i * 0.37).toFixed(2)}s"/>`;
   }
-  g += `<g class="sc-wind" stroke="${night ? '#9fb7d8' : '#ffffff'}" stroke-width="1.5" stroke-linecap="round" opacity=".55" style="--d:${dur}s">${streaks}</g>`;
-  // ים: שלוש שכבות גלים בתנועה
-  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(10 + T).toFixed(1)}s"><path d="${wavePath(W, base - 6, A * 0.6, L * 0.8, 0)}" fill="url(#se)" opacity=".45"/></g>`;
-  // סירה
+  g += `<g class="sc-wind" stroke="${night ? '#9fb7d8' : '#ffffff'}" stroke-width="1.4" stroke-linecap="round" opacity=".6" style="--d:${dur}s">${streaks}</g>`;
+  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(10 + T).toFixed(1)}s"><path d="${wavePath(W, base - 5, A * 0.6, L * 0.8, 0)}" fill="url(#se)" opacity=".45"/></g>`;
   const hull = `<path d="M-26 0 L26 0 L19 9 L-19 9 Z" fill="#ff7a45"/>`;
   const sails = `<path d="M2 -52 L2 -2 L28 -2 Z" fill="#fff"/><path d="M-2 -44 L-2 -2 L-22 -2 Z" fill="#f2f6fa"/><line x1="0" y1="-54" x2="0" y2="0" stroke="#334" stroke-width="2"/>`;
-  g += `<g transform="translate(180 ${(base - 4 - A * 0.7).toFixed(1)})"><g class="sc-boat" style="--b:${bob.toFixed(1)}px;--h:${heel.toFixed(0)}deg;--t:${(T * 0.9).toFixed(1)}s">${sails}${hull}</g></g>`;
-  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(9 + T).toFixed(1)}s"><path d="${wavePath(W, base + 4, A, L, L / 3)}" fill="url(#se)"/></g>`;
-  g += `<g class="sc-wave" style="--L:${(L * 1.2).toFixed(0)}px;--t:${(12 + T).toFixed(1)}s"><path d="${wavePath(W, base + 22, A * 0.5, L * 1.2, L / 2)}" fill="${sea[1]}" opacity=".7"/></g>`;
+  g += `<g transform="translate(150 ${(base - 3 - A * 0.6).toFixed(1)}) scale(.62)"><g class="sc-boat" style="--b:${(bob / .62).toFixed(1)}px;--h:${heel.toFixed(0)}deg;--t:${(T * 0.9).toFixed(1)}s">${sails}${hull}</g></g>`;
+  g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(9 + T).toFixed(1)}s"><path d="${wavePath(W, base + 3, A, L, L / 3)}" fill="url(#se)"/></g>`;
+  g += `<g class="sc-wave" style="--L:${(L * 1.2).toFixed(0)}px;--t:${(12 + T).toFixed(1)}s"><path d="${wavePath(W, base + 16, A * 0.5, L * 1.2, L / 2)}" fill="${sea[1]}" opacity=".7"/></g>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${seaFeel(r)}">${g}</svg>`;
 }
 
@@ -903,12 +890,12 @@ function renderSeaCard() {
       <div class="sc-art">${seaSvg(r)}
         <div class="sc-when">${isNow ? 'עכשיו' : whenWords(selectedDate)} · <bdi dir="ltr">${hm(r.hour)}</bdi>${isNight(r) ? ' ☾' : ''}</div>
         <div class="sc-compass">${miniCompass(d, r.waveDir)}</div>
-        <div class="sc-nums">
+      </div>
+      <div class="sc-nums">
           <div class="n"><span class="l">רוח</span><b><bdi dir="ltr">${fmt(r.wind)}</bdi></b><span class="u">קשר</span>${d != null ? rot(d) : ''}</div>
           <div class="n"><span class="l">משבים</span><b><bdi dir="ltr">${fmt(r.gust)}</bdi></b><span class="u">קשר</span></div>
           <div class="n"><span class="l">גלים</span><b><bdi dir="ltr">${fmt(r.wave, 1)}</bdi></b><span class="u">מטר</span>${r.waveDir != null ? rot(r.waveDir) : ''}</div>
         </div>
-      </div>
       <div class="sc-cap">
         <span class="sc-feel">${seaFeel(r)}</span>
         <span class="sc-dirs">רוח ${from8(d)}${fromSea ? ' (מהים)' : fromLand ? ' (מהיבשה)' : ''} · גלים ${from8(r.waveDir)}</span>

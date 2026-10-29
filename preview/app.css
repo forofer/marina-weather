@@ -543,3 +543,21 @@ b, .v, .wn, .sc-nums b, .hh, table td, table th, .t-h, .t-v, .t-g, .t-w, .t-p, .
 .hero > *, .sc-card, .sc, .sc-art { min-width: 0; }
 .sc-compass svg, .sarrow { width: auto; height: auto; }
 .sc-compass svg { width: 56px; height: 56px; } .sarrow { width: 14px; height: 14px; }
+
+/* ---------- כרטיס ים קומפקטי ---------- */
+.sc { gap: 8px; }
+.sc-art { aspect-ratio: 360 / 92; max-height: 140px; }
+.sc-when { top: 6px; right: 8px; font-size: 12px; padding: 2px 8px; }
+.sc-compass { top: 4px; left: 4px; }
+.sc-compass svg { width: 40px !important; height: 40px !important; }
+.sc-nums { position: static; inset: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.sc-nums .n { background: var(--panel-2); color: var(--fg); -webkit-backdrop-filter: none; backdrop-filter: none; min-height: 44px; border-radius: 10px; padding: 4px 6px; flex-wrap: nowrap; }
+.sc-nums .l, .sc-nums .u { color: var(--muted); }
+.sc-nums .sarrow { color: var(--fg); }
+.sc-nums .n:nth-child(2) b { color: var(--gust); }
+.sc-feel { font: 600 15px/22px var(--font); }
+.sc-dirs { font-size: 13.5px; color: var(--muted); }
+.hero-badge { padding: 12px 14px; gap: 4px; }
+.hero-badge .vt { font: 700 23px/30px var(--num); }
+.vglyph.big { width: 28px; height: 28px; }
+.hero-badge .why-plain { font-size: 15px; line-height: 22px; }
