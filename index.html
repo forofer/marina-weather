@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Rubik:wght@500;600;700&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=4.1">
+  <link rel="stylesheet" href="app.css?v=4.2">
 </head>
 <body class="web">
 <div class="app">
@@ -59,7 +59,8 @@
     <h2 class="sec-h">שעה אחרי שעה</h2>
     <div id="timeline" class="timeline"></div>
     <p class="arrow-note">החצים מראים לאן הרוח נושבת. הקו המקווקו הוא הסף שלך.</p>
-    <h2 class="sec-h">השבוע במבט אחד <span class="muted">· לחיצה על שורה פותחת את היום</span></h2>
+    <h2 class="sec-h">השבוע במבט אחד</h2>
+    <p class="arrow-note">בכל משבצת: חץ = לאן הרוח נושבת, מספר = רוח בקשרים, ⚠/✕ = בזהירות/לא מומלץ, ☾ = אחרי השקיעה. לחיצה על שורה פותחת את היום.</p>
     <div id="week" class="week"></div>
   </main>
 
@@ -91,6 +92,7 @@
       <button class="seg" data-overlay="waves">🌊 גלים</button>
       <button class="seg" data-overlay="swell1">〰️ סוֹול</button>
     </div>
+    <p class="arrow-note">המפה של Windy מציגה את התחזית לעכשיו ולא מסונכרנת עם היום שבחרת – אפשר לבחור בה זמן בעצמכם. <a href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener">פתיחה ב-Windy ↗</a></p>
     <div class="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe></div>
     <p class="arrow-note">לגלילת הדף – גלול מחוץ למפה.</p>
   </main>
@@ -112,6 +114,7 @@
       <label>מרווח
         <select id="s-step"><option value="1">כל שעה</option><option value="2">כל שעתיים</option><option value="3">כל 3 שעות</option></select>
       </label>
+      <label class="check"><input type="checkbox" id="s-night"> לכלול גם שעות אחרי השקיעה בהמלצה</label>
       <label class="check"><input type="checkbox" id="s-showModels"> השוואת מודלים בטבלה <bdi dir="ltr">(ECMWF / ICON / GFS)</bdi></label>
     </div>
     <details class="adv" id="adv-points"><summary>מתקדם: מאיפה נלקחת התחזית (מפה)</summary>
@@ -133,6 +136,7 @@
     <div id="pt-info" class="pt-info"></div>
     <p class="muted small">החזאי מחשב את התחזית לפי משבצת רשת (תא מודל). העיגול המקווקו הוא מרכז התא שהמודל באמת השתמש בו. כדי שהתחזית תייצג את הים, גם הנקודה וגם התא צריכים להיות בים, קרוב לאזור שבו אתה מפליג בדרך כלל.</p>
     </details>
+    <div id="settings-errors" class="settings-errors hidden" role="alert" tabindex="-1"></div>
     <div class="settings-actions">
       <button id="settings-reset">ברירת מחדל</button>
       <button id="settings-save" class="primary">שמור</button>
@@ -146,8 +150,8 @@
 
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=4.1"></script>
-  <script src="app.js?v=4.1"></script>
+  <script src="icons.js?v=4.2"></script>
+  <script src="app.js?v=4.2"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

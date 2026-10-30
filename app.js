@@ -5,7 +5,7 @@ const DEFAULTS = {
   windLat: 32.165, windLon: 34.785,   // מרינה הרצליה
   waveLat: 32.170, waveLon: 34.760,   // ים פתוח ~2.5 ק"מ מערבית למרינה
   maxWind: 16, maxGust: 22, maxWave: 1.3, minPeriod: 5,
-  hourFrom: 6, hourTo: 21, step: 1, showModels: true
+  hourFrom: 6, hourTo: 21, step: 1, showModels: true, night: true
 };
 const TZ = 'Asia/Jerusalem';
 const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 דקות
@@ -64,26 +64,55 @@ function ink(hex) { // צבע טקסט קריא על רקע נתון
   const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
   return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0d141c' : '#ffffff';
 }
-const VERDICT = [{ t: 'מתאים להפלגה', g: '✓', long: 'כן, מתאים להפלגה' }, { t: 'אפשר, בזהירות', g: '!', long: 'אפשר, אבל בזהירות' }, { t: 'לא מומלץ', g: '✕', long: 'לא מומלץ להפליג' }];
+const VERDICT = [{ t: 'מתאים להפלגה', g: '✓', long: 'כן, מתאים להפלגה' }, { t: 'אפשר, בזהירות', g: '!', long: 'אפשר, אבל בזהירות' }, { t: 'לא מומלץ', g: '✕', long: 'לא מומלץ להפליג' }, { t: 'אין מספיק נתונים', g: '?', long: 'אין מספיק נתונים להמלצה' }];
 // "האם מתאים להפליג מחר?" / "...בשבת?" / "...ביום ראשון?"
 function whenWords(date) {
   const l = dayLabel(date, nowLocal().slice(0, 10)).name;
   return l === 'היום' || l === 'מחר' ? l : l === 'שבת' ? 'בשבת' : 'ביום ' + l;
 }
 // סיבות בשפה פשוטה, עם המספר הרלוונטי
-function plainReasons(rows) {
-  const set = new Set(); rows.forEach(r => verdict(r).reasons.forEach(x => set.add(x)));
-  const mx = k => Math.max(...rows.map(r => r[k] ?? 0));
-  const map = {
-    'גלים מעל הסף': () => `גלים גבוהים, עד ${fmt(mx('wave'), 1)} מ׳`,
-    'משבים מעל הסף': () => `משבי רוח חזקים, עד ${fmt(mx('gust'))} קשר`,
-    'רוח מעל הסף': () => `רוח חזקה, עד ${fmt(mx('wind'))} קשר`,
-    'ים קצר ותלול': () => 'ים קצר ומטלטל',
-    'סופת רעמים': () => 'סופת רעמים', 'סיכון לרעמים': () => 'סיכון לרעמים', 'ראות נמוכה': () => 'ראות נמוכה'
-  };
-  return [...set].map(x => (map[x] || (() => x))());
+// ערך מול הסף – עם דיוק נוסף כשהעיגול היה מסתיר את החריגה
+const OVER_NAME = { wind: ['רוח', 'קשר', 0], gust: ['משבים', 'קשר', 0], wave: ['גלים', 'מ׳', 1] };
+function overText(o) {
+  const [name, unit, d0] = OVER_NAME[o.k];
+  let d = d0;
+  while (d < d0 + 2 && +Number(o.v).toFixed(d) <= +Number(o.max).toFixed(d)) d++;
+  return `${name} ${fmt(o.v, d)} ${unit} – מעל הסף שלך (${o.max})`;
 }
-const vGlyph = (lvl, big) => `<span class="vglyph v${lvl}${big ? ' big' : ''}" aria-hidden="true">${ico(['check', 'triangle-alert', 'x'][lvl], big ? 20 : 13)}</span>`;
+// סיבות בשפה פשוטה: לכל סוג חריגה – הערך הגבוה ביותר מול הסף
+function plainReasons(rows) {
+  const worst = {}, other = new Set();
+  rows.forEach(r => { const v = verdict(r); v.over.forEach(o => { if (!worst[o.k] || o.v > worst[o.k].v) worst[o.k] = o; }); v.reasons.forEach(x => { if (!/מעל הסף/.test(x)) other.add(x); }); });
+  const order = ['wave', 'gust', 'wind'].filter(k => worst[k]).map(k => overText(worst[k]));
+  const extra = [...other].map(x => x === 'ים קצר ותלול' ? 'גלים קצרים וצפופים' : x);
+  return [...extra.filter(x => /רעמים/.test(x)), ...order, ...extra.filter(x => !/רעמים/.test(x))];
+}
+// מצב לשעה הנבחרת/הנוכחית מול סיכום היום – כדי שהכותרת לא תאשר "לצאת עכשיו" בטעות
+function heroStatus(date) {
+  const rows = activeRows(date);
+  const isToday = date === nowLocal().slice(0, 10);
+  if (rows.length < 2) return { late: true, rows };
+  const dv = dayVerdict(rows);
+  const wins = dv.wins.slice(0, 2).sort((a, b) => a.start - b.start);
+  const winTxt = wins.map(w => `${hm(w.start)}–${hm(w.end + 1)}`).join(' , ');
+  let lvl = dv.lvl, title = VERDICT[lvl].long, why = '', later = '';
+  if (lvl === NODATA) {
+    why = 'חסרים נתוני ' + [...new Set(rows.flatMap(r => verdict(r).missing))].join(' ו') + ' – נסו לרענן בעוד כמה דקות';
+  } else if (isToday && wins.length && verdict(rows[0]).level !== 0) {
+    // היום יש חלון טוב – אבל לא עכשיו
+    lvl = 1;
+    title = `מתאים רק מ-${hm(wins[0].start)}`;
+    why = 'כרגע: ' + (plainReasons([rows[0]]).slice(0, 2).join(' · ') || 'לא בתוך הספים');
+    later = `חלון מתאים: ${winTxt}`;
+  } else if (lvl === 0) {
+    later = `${isToday ? 'השעות המתאימות שנותרו היום' : 'השעות המתאימות'}: ${winTxt}`;
+  } else {
+    why = 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' · ');
+    later = wins.length ? `שעות מתאימות בכל זאת: ${winTxt}` : 'אין שעות מתאימות ביום הזה';
+  }
+  return { lvl, title, why, later, wins, rows, dv };
+}
+const vGlyph = (lvl, big) => `<span class="vglyph v${lvl}${big ? ' big' : ''}" aria-hidden="true">${ico(['check', 'triangle-alert', 'x', 'cloud-off'][lvl], big ? 20 : 13)}</span>`;
 const ICON = { wind: '💨', wave: '🌊', rain: '🌧️', sun: '☀️', warn: '⚠️', live: '📡' };
 
 function wxIcon(code, isNight) {
@@ -107,8 +136,10 @@ function dayLabel(dateStr, todayStr) {
   return { name, sub: (diff <= 1 ? HEB_DAYS[d.getDay()] + ' ' : '') + `${d.getDate()}/${d.getMonth() + 1}` };
 }
 
+let NOW_OVERRIDE = null; // לבדיקות בלבד
 function nowLocal() {
   // מחזיר 'YYYY-MM-DDTHH:00' לפי שעון ישראל
+  if (NOW_OVERRIDE) return NOW_OVERRIDE;
   const p = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
     .formatToParts(new Date()).reduce((a, x) => (a[x.type] = x.value, a), {});
   return `${p.year}-${p.month}-${p.day}T${p.hour}:00`;
@@ -133,25 +164,34 @@ function buildUrls(s) {
   };
 }
 
-async function getJson(url) {
-  const r = await fetch(url, { cache: 'no-store' });
-  if (!r.ok) {
-    let msg = `HTTP ${r.status}`;
-    try { const j = await r.json(); if (j.reason) msg += ` – ${j.reason}`; } catch (_) {}
-    throw new Error(msg);
-  }
-  return r.json();
+async function getJson(url, ms = 15000) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = setTimeout(() => ctl && ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+    if (!r.ok) {
+      let msg = `HTTP ${r.status}`;
+      try { const j = await r.json(); if (j.reason) msg += ` – ${j.reason}`; } catch (_) {}
+      throw new Error(msg);
+    }
+    return await r.json();
+  } catch (e) {
+    throw new Error(e && e.name === 'AbortError' ? 'השרת לא ענה בזמן' : (e.message || 'שגיאת רשת'));
+  } finally { clearTimeout(timer); }
 }
 
-async function fetchAll() {
+// טעינה בשני שלבים: קודם רוח וגלים (חובה), אחר כך השוואת מודלים ואנסמבל הגשם
+async function fetchAll(onCore) {
   const u = buildUrls(settings);
-  const [fc, md, mr, en] = await Promise.allSettled([getJson(u.forecast), getJson(u.models), getJson(u.marine), getJson(u.ensemble)]);
-  if (fc.status === 'rejected' && mr.status === 'rejected') {
-    throw new Error(`לא ניתן לקבל תחזית (${fc.reason.message})`);
-  }
+  const pfc = getJson(u.forecast, 15000), pmr = getJson(u.marine, 15000);
+  const pmd = getJson(u.models, 20000), pen = getJson(u.ensemble, 20000);
+  const [fc, mr] = await Promise.allSettled([pfc, pmr]);
+  if (fc.status === 'rejected' && mr.status === 'rejected') throw new Error(`לא ניתן לקבל תחזית (${fc.reason.message})`);
   const errors = [];
-  if (fc.status === 'rejected') errors.push('תחזית הרוח לא נטענה');
-  if (mr.status === 'rejected') errors.push('תחזית הגלים לא נטענה');
+  if (fc.status === 'rejected') errors.push('תחזית הרוח לא נטענה – אין המלצה עד שתיטען');
+  if (mr.status === 'rejected') errors.push('תחזית הגלים לא נטענה – אין המלצה עד שתיטען');
+  if (onCore) try { onCore(merge(fc.value, null, mr.value, [...errors], null)); } catch (_) {}
+  const [md, en] = await Promise.allSettled([pmd, pen]);
   return merge(fc.value, md.status === 'fulfilled' ? md.value : null, mr.value, errors, en.status === 'fulfilled' ? en.value : null);
 }
 
@@ -172,12 +212,12 @@ function merge(fc, md, mr, errors, en) {
     }));
   }
   // סיכוי לגשם מחושב מהאנסמבל (במקום precipitation_probability שסופר כל טיפה)
-  let hasEnsemble = false;
+  let hasEnsemble = false, ensembleN = 0;
   if (en && en.hourly) {
     const h = en.hourly;
     const keys = Object.keys(h).filter(k => k.startsWith('precipitation'));
     if (keys.length >= 10) {
-      hasEnsemble = true;
+      hasEnsemble = true; ensembleN = keys.length;
       h.time.forEach((t, i) => {
         let n = 0, rainN = 0, drizN = 0;
         for (const k of keys) { const v = h[k][i]; if (v == null) continue; n++; if (v >= RAIN_MM) rainN++; if (v >= DRIZZLE_MM) drizN++; }
@@ -222,31 +262,42 @@ function merge(fc, md, mr, errors, en) {
     models: md && md.latitude != null ? [md.latitude, md.longitude] : null
   };
   return {
-    rows, daily, hasModels, hasEnsemble, errors, grid,
+    rows, daily, hasModels, hasEnsemble, ensembleN, errors, grid,
     current: { ...(fc?.current || {}), ...(mr?.current ? { wave: mr.current.wave_height, wavePer: mr.current.wave_period, waveDir: mr.current.wave_direction, sst: mr.current.sea_surface_temperature } : {}) },
     fetchedAt: Date.now()
   };
 }
 
 /* ===================== לוגיקת "יוצאים / לא יוצאים" ===================== */
+// 0 מתאים · 1 בזהירות · 2 לא מומלץ · 3 אין מספיק נתונים
+const NODATA = 3;
+const isNum = v => typeof v === 'number' && Number.isFinite(v);
 function verdict(r) {
   const s = settings;
-  const reasons = [];
-  let level = 0; // 0 ירוק, 1 צהוב, 2 אדום
-  const bump = (lvl, why) => { if (lvl > level) level = lvl; reasons.push(why); };
+  const reasons = [], over = [];
+  let level = 0, hazard = false;
+  const bump = (lvl, why, o) => { if (lvl > level) level = lvl; if (!reasons.includes(why)) reasons.push(why); if (o) over.push(o); };
+  const missing = [];
+  if (!isNum(r.wind)) missing.push('רוח');
+  if (!isNum(r.gust)) missing.push('משבים');
+  if (!isNum(r.wave)) missing.push('גלים');
 
-  if (r.code >= 95) bump(2, 'סופת רעמים');
-  if (r.wind != null) { if (r.wind > s.maxWind * 1.25) bump(2, 'רוח מעל הסף'); else if (r.wind > s.maxWind) bump(1, 'רוח מעל הסף'); }
-  if (r.gust != null) { if (r.gust > s.maxGust * 1.25) bump(2, 'משבים מעל הסף'); else if (r.gust > s.maxGust) bump(1, 'משבים מעל הסף'); }
-  if (r.wave != null) {
-    if (r.wave > s.maxWave * 1.3) bump(2, 'גלים מעל הסף');
-    else if (r.wave > s.maxWave) bump(1, 'גלים מעל הסף');
+  if (isNum(r.code) && r.code >= 95) { bump(2, 'סופת רעמים'); hazard = true; }
+  if (isNum(r.wind) && r.wind > s.maxWind) bump(r.wind > s.maxWind * 1.25 ? 2 : 1, 'רוח מעל הסף', { k: 'wind', v: r.wind, max: s.maxWind });
+  if (isNum(r.gust) && r.gust > s.maxGust) bump(r.gust > s.maxGust * 1.25 ? 2 : 1, 'משבים מעל הסף', { k: 'gust', v: r.gust, max: s.maxGust });
+  if (isNum(r.wave)) {
+    if (r.wave > s.maxWave) bump(r.wave > s.maxWave * 1.3 ? 2 : 1, 'גלים מעל הסף', { k: 'wave', v: r.wave, max: s.maxWave });
     // ים קצר ותלול: גל משמעותי במחזור קצר
-    if (r.wavePer != null && r.wave >= s.maxWave * 0.7 && r.wavePer < s.minPeriod) bump(1, 'ים קצר ותלול');
+    if (isNum(r.wavePer) && r.wave >= s.maxWave * 0.7 && r.wavePer < s.minPeriod) bump(1, 'ים קצר ותלול');
   }
-  if (r.vis != null && r.vis < 2000) bump(1, 'ראות נמוכה');
-  if (r.cape != null && r.cape > 1000 && (r.pop ?? 0) > 30) bump(1, 'סיכון לרעמים');
-  return { level, reasons, cls: ['v-go', 'v-maybe', 'v-nogo'][level] };
+  if (isNum(r.vis) && r.vis < 2000) bump(1, 'ראות נמוכה');
+  if (isNum(r.cape) && r.cape > 1000 && (r.pop ?? 0) > 30) bump(1, 'סיכון לרעמים');
+  // נתון חיוני חסר: אי אפשר להמליץ – אלא אם כבר ידוע שזה "לא מומלץ"
+  if (missing.length) {
+    reasons.unshift('חסרים נתוני ' + missing.join(' ו'));
+    if (level < 2) level = NODATA;
+  }
+  return { level, reasons, over, hazard, missing, cls: ['v-go', 'v-maybe', 'v-nogo', 'v-none'][level] };
 }
 
 function isNight(r) {
@@ -260,19 +311,23 @@ function isNight(r) {
 // שעה "שמישה" להפלגה: באור יום, ומסתיימת לכל המאוחר כרבע שעה אחרי השקיעה
 function sunH(date, k) { const d = data.daily[date]; return d ? +d[k].slice(11, 13) + d[k].slice(14, 16) / 60 : (k === 'sunset' ? 17.5 : 6); }
 // גם שעות ערב ולילה נחשבות – ההחלטה לפי רוח, משבים וגלים. החושך רק מסומן (☾) ומזכיר אורות ניווט.
-function sailable(r) { return true; }
+function sailable(r) { return settings.night !== false || (!isNight(r) && r.hour + 1 <= sunH(r.date, 'sunset') + 0.25); }
 
 // החלטה אחת לכל האתר (לשוניות ימים, סיכום, פירוט, מפת שבוע)
 function dayVerdict(rows) {
   if (!rows.length) return { lvl: null, wins: [] };
-  const lv = rows.map(r => verdict(r).level), n = lv.length;
-  const green = lv.filter(l => l === 0).length, red = lv.filter(l => l === 2).length;
+  const vs = rows.map(verdict), n = vs.length;
+  const known = vs.filter(v => v.level !== NODATA).length;
+  const green = vs.filter(v => v.level === 0).length, red = vs.filter(v => v.level === 2).length;
+  const hazard = vs.some(v => v.hazard);
   const wins = greenWindows(rows, 2);
   let lvl;
-  if (red / n > 0.5) lvl = 2;
+  if (known / n < 0.5) lvl = NODATA;
+  else if (red / n > 0.5) lvl = 2;
   else if (green / n >= 0.5 && wins.length) lvl = 0;
+  else if (!wins.length && hazard) lvl = 2;
   else lvl = 1;
-  return { lvl, wins };
+  return { lvl, wins, hazard };
 }
 
 function dayRows(date) {
@@ -344,7 +399,7 @@ function renderDays() {
 function renderSummary() {
   const s = daySummary(selectedDate);
   const today = nowLocal().slice(0, 10);
-  const vCls = ['verdict-go', 'verdict-maybe', 'verdict-nogo'][s.dayLevel];
+  const vCls = ['verdict-go', 'verdict-maybe', 'verdict-nogo', 'verdict-none'][s.dayLevel];
   const best = s.best ? `<bdi dir="ltr">${hm(s.best.start)}–${hm(s.best.end + 1)}</bdi>` : 'אין';
   const sun = s.sun ? `<bdi dir="ltr">${s.sun.sunrise.slice(11)}–${s.sun.sunset.slice(11)}</bdi>` : '–';
   const kt = v => `<bdi dir="ltr">${fmt(v)}</bdi>`;
@@ -438,14 +493,14 @@ function renderTable() {
     }
   }
   html += sep;
-  html += tr('גובה גל (מ׳)', r => ({ cls: 'c', style: `background:${scaleColor(r.wave, WAVE_STOPS)};color:${ink(scaleColor(r.wave, WAVE_STOPS))}`, html: fmt(r.wave, 1) }));
+  html += tr('<span title="גובה גל משמעותי: הממוצע של השליש הגבוה מהגלים. גלים בודדים יכולים להיות גבוהים יותר.">גובה גל משמעותי (מ׳)</span>', r => ({ cls: 'c', style: `background:${scaleColor(r.wave, WAVE_STOPS)};color:${ink(scaleColor(r.wave, WAVE_STOPS))}`, html: fmt(r.wave, 1) }));
   html += tr('מחזור (שנ׳)', r => ({ html: fmt(r.wavePer, 1), cls: (r.wavePer != null && r.wavePer < settings.minPeriod && r.wave >= settings.maxWave * 0.7) ? 'warn' : '' }));
   html += tr('כיוון גל', r => `${arrow(r.waveDir)}<div class="sub">${compass(r.waveDir)}</div>`);
   html += tr('גלי רוח m·s', r => r.ww == null ? '–' : `${fmt(r.ww, 1)}<div class="sub">${fmt(r.wwPer, 1)}s</div>`);
   html += tr('סוֹול m·s', r => r.sw == null ? '–' : `${fmt(r.sw, 1)} ${arrow(r.swDir)}<div class="sub">${fmt(r.swPer, 1)}s</div>`);
   html += sep;
   html += tr('טמפ\' °C', r => fmt(r.temp));
-  html += tr('<span title="סיכוי לגשם של 0.5 מ&quot;מ ומעלה בשעה, לפי 122 הרצות אנסמבל">גשם % · mm</span>', r => (r.pop ?? 0) < 10 && (r.rain ?? 0) < 0.1 ? '<span class="sub">–</span>' : `${fmt(r.pop)}<div class="sub">${fmt(r.rain, 1)}</div>`);
+  html += tr(`<span title="${data.hasEnsemble ? `אחוז מתוך ${data.ensembleN} הרצות אנסמבל שצופות לפחות 0.5 מ&quot;מ בשעה` : 'הסתברות לגשם לפי Open-Meteo (כל משקע מעל 0.1 מ&quot;מ)'}">גשם % · mm</span>`, r => (r.pop ?? 0) < 10 && (r.rain ?? 0) < 0.1 ? '<span class="sub">–</span>' : `${fmt(r.pop)}<div class="sub">${fmt(r.rain, 1)}</div>`);
   if (data.hasEnsemble) html += tr('<span title="סיכוי לטיפות/טפטוף (0.1 מ&quot;מ ומעלה)">טפטוף %</span>', r => (r.drizzle ?? 0) < 10 ? '<span class="sub">–</span>' : `<span class="sub" style="color:var(--rain)">${fmt(r.drizzle)}</span>`);
   html += tr('לחץ hPa', r => `<span class="sub" style="color:var(--fg)">${fmt(r.pres)}</span>`);
   html += tr('ראות km', r => r.vis == null ? '–' : (r.vis >= 20000 ? '<span class="sub">20+</span>' : `<span class="${r.vis < 4000 ? 'warn' : ''}">${fmt(r.vis / 1000, 1)}</span>`));
@@ -458,7 +513,8 @@ function renderAll() {
   if (!data) return;
   $('intro').innerHTML = `<b>תחזית ים למרינה הרצליה:</b> האם מתאים לצאת להפליג, ומה תפגוש בים.
     <span class="legend-v">${vGlyph(0)} מתאים · ${vGlyph(1)} בזהירות · ${vGlyph(2)} לא מומלץ</span>
-    <span class="muted">מתאים כשהרוח עד ${settings.maxWind} קשר, המשבים עד ${settings.maxGust} והגלים עד ${settings.maxWave} מ׳. אפשר לשנות בהגדרות ⚙️</span>`;
+    <span class="muted">מתאים כשהרוח עד ${settings.maxWind} קשר, המשבים עד ${settings.maxGust} והגלים עד ${settings.maxWave} מ׳. אפשר לשנות בהגדרות ⚙️</span>
+    <span class="muted">כל הנתונים הם תחזית ולא מדידה. גובה הגלים הוא "גובה גל משמעותי" (ממוצע השליש הגבוה) – גלים בודדים יכולים להיות גבוהים יותר. הציור להמחשה בלבד.</span>`;
   $('loading').classList.add('hidden');
   renderDays();
   renderHero();
@@ -468,13 +524,24 @@ function renderAll() {
   renderChart();
   renderPlan();
   renderTable();
-  const t = new Date(data.fetchedAt);
-  const age = Date.now() - data.fetchedAt;
-  $('updated').textContent = `עודכן ${t.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` +
-    (age > 12 * 3600e3 ? ` (${t.toLocaleDateString('he-IL')})` : '') + (age > 3 * 3600e3 ? ' · לא עדכני' : '');
-  $('updated').classList.toggle('stale', age > 3 * 3600e3);
+  renderUpdated();
 }
 
+// "נמשך לפני X דק׳" – לפי שעון ישראל, מתעדכן כל דקה
+function ageText(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return 'עכשיו';
+  if (m < 60) return `לפני ${m} דק׳`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `לפני ${h === 1 ? 'שעה' : h + ' שעות'}` : `לפני ${Math.floor(h / 24)} ימים`;
+}
+function renderUpdated() {
+  if (!data) return;
+  const t = new Date(data.fetchedAt), age = Date.now() - data.fetchedAt;
+  const clock = t.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+  $('updated').textContent = `התחזית נמשכה ${ageText(age)} (${clock})` + (age > 3 * 3600e3 ? ' · לא עדכני' : '');
+  $('updated').classList.toggle('stale', age > 3 * 3600e3);
+}
 function showBanner(msg, isError) {
   const b = $('banner');
   if (!msg) { b.classList.add('hidden'); return; }
@@ -498,8 +565,8 @@ function dirShift(rows) {
   return d >= 45 && dir8(a) !== dir8(b) ? `מסתובבת מ${dir8(a)} ל${dir8(b)}` : '';
 }
 const COAST_NORMAL = 290; // חוף הרצליה פונה למערב-צפון-מערב
-const VCOL = ['var(--go)', 'var(--maybe)', 'var(--nogo)'];
-const VTXT = ['inherit', 'var(--maybe-ink)', 'var(--nogo-ink)']; // צבעי טקסט קריאים
+const VCOL = ['var(--go)', 'var(--maybe)', 'var(--nogo)', 'var(--muted)'];
+const VTXT = ['inherit', 'var(--maybe-ink)', 'var(--nogo-ink)', 'var(--muted)']; // צבעי טקסט קריאים
 const pad2 = h => String(h).padStart(2, '0');
 const range = (a, b, d = 0) => (a == null) ? '–' : (Math.abs(a - b) < (d ? 0.15 : 1.5) ? fmt(b, d) : `\u2066${fmt(a, d)}\u2060–\u2060${fmt(b, d)}\u2069`);
 
@@ -560,6 +627,17 @@ function coastNote(deg) {
   if (d > 120) return 'רוח יבשה – ים שקט ליד החוף אך משבית, מתחזקת בהתרחקות מהחוף';
   return 'רוח לאורך החוף – הפלגה צפונה או דרומה תהיה בחצי רוח, מהירה ונוחה';
 }
+// גשם בשעה r ובשלוש השעות שאחריה – בלי הבטחות מוחלטות
+function rainSoonText(r) {
+  const next = data.rows.filter(x => x.t >= r.t).slice(0, 4);
+  const end = hm(Math.min(24, r.hour + 4));
+  const wetH = next.filter(x => (x.pop ?? 0) >= 25 || (x.rain ?? 0) >= RAIN_MM);
+  const maxPop = Math.max(0, ...next.map(x => x.pop ?? 0));
+  if (!next.some(x => isNum(x.pop) || isNum(x.rain))) return { wet: false, t: 'אין נתוני גשם' };
+  if (wetH.length) return { wet: true, t: `סיכוי לגשם ${fmt(maxPop)}% ב-<bdi dir="ltr">${hm(wetH[0].hour)}</bdi>` };
+  if (maxPop >= 5) return { wet: false, t: `סיכוי נמוך לגשם עד <bdi dir="ltr">${end}</bdi>` };
+  return { wet: false, t: `לא צפוי גשם עד <bdi dir="ltr">${end}</bdi>` };
+}
 function skyIcon(rows) {
   if (rows.some(r => (r.pop ?? 0) >= 30 || (r.rain ?? 0) >= RAIN_MM)) return '🌧️';
   if (Math.max(0, ...rows.map(r => r.drizzle ?? 0)) >= 30) return '🌦️';
@@ -579,14 +657,21 @@ function rainText(rows) {
   const chance = maxPop >= 10 ? `סיכוי עד ${fmt(maxPop)}%` : 'סיכוי נמוך';
   return { t: `גשם אפשרי \u2066${pad2(wet[0].hour)}:00–${pad2(wet[wet.length - 1].hour + 1)}:00\u2069 (${fmt(mm, 1)} מ"מ, ${chance})`, wet: true };
 }
+const tMs = t => Date.parse(t + ':00Z');
 function greenWindows(rows, minLen = 1) {
-  const out = []; let cur = null;
+  // חלון = שעות ירוקות רצופות בפועל; שעה חסרה בתחזית קוטעת את החלון
+  const out = []; let cur = null, prev = null;
   for (const r of rows) {
-    if (verdict(r).level === 0) { cur ? cur.end = r.hour : (cur = { start: r.hour, end: r.hour }); }
-    else if (cur) { out.push(cur); cur = null; }
+    const ok = verdict(r).level === 0;
+    const contig = prev && tMs(r.t) - tMs(prev.t) === 3600e3;
+    if (ok) {
+      if (cur && contig) { cur.end = r.hour; cur.n++; }
+      else { if (cur) out.push(cur); cur = { start: r.hour, end: r.hour, n: 1, date: r.date }; }
+    } else if (cur) { out.push(cur); cur = null; }
+    prev = r;
   }
   if (cur) out.push(cur);
-  return out.filter(w => w.end - w.start >= minLen - 1).sort((a, b) => (b.end - b.start) - (a.end - a.start));
+  return out.filter(w => w.n >= minLen).sort((a, b) => b.n - a.n);
 }
 
 function activeRows(date) {
@@ -605,14 +690,14 @@ function renderHero() {
     if (next) $('go-next').addEventListener('click', () => { selectedDate = next; renderAll(); window.scrollTo(0, 0); });
     return;
   }
-  const dv = dayVerdict(rows);
-  const lvl = dv.lvl;
-  const wins = dv.wins.slice(0, 2).sort((a, b) => a.start - b.start);
+  const hs = heroStatus(selectedDate);
+  const lvl = hs.lvl, dv = hs.dv;
+  const wins = hs.wins;
   const ssH = sunH(selectedDate, 'sunset');
   const winTxt = wins.length ? wins.map(w => `<bdi dir="ltr">${hm(w.start)}–${hm(w.end + 1)}</bdi>`).join(' , ') +
     (wins.some(w => w.end + 1 > ssH + 0.25) ? ' <span class="night-note">(גם אחרי השקיעה)</span>' : '') : 'אין שעות טובות';
   // כשיוצאים – המספרים מתארים את השעות הטובות עצמן
-  const statRows = lvl === 0 && wins.length ? rows.filter(r => wins.some(w => r.hour >= w.start && r.hour <= w.end)) : rows;
+  const statRows = dv.lvl === 0 && wins.length ? rows.filter(r => wins.some(w => r.hour >= w.start && r.hour <= w.end)) : rows;
   const vals = k => statRows.map(r => r[k]).filter(v => v != null);
   const mn = k => vals(k).length ? Math.min(...vals(k)) : null, mx = k => vals(k).length ? Math.max(...vals(k)) : null;
   const md = meanDir(rows);
@@ -625,6 +710,8 @@ function renderHero() {
   const reasons = lvl > 0 ? reasonsByHour(rows).slice(0, 2) : [];
 
   const warns = [];
+  const age = Date.now() - data.fetchedAt;
+  if (age > 3 * 3600e3) warns.push(`התחזית לא עודכנה ${ageText(age).replace('לפני ', '')} – לחצו רענון`);
   if (rows.some(r => r.code >= 95)) warns.push('סופות רעמים צפויות');
   else if (rows.some(r => (r.cape ?? 0) > 1000 && (r.pop ?? 0) > 30)) warns.push('סיכון לרעמים');
   if (gMax != null && wMax != null && gMax - wMax >= 10) warns.push('רוח משבית – להכין ריף מראש');
@@ -644,10 +731,10 @@ function renderHero() {
   $('hero').innerHTML = `
     <div class="hero-badge" style="--c:${VCOL[lvl]}">
       <div class="q">האם מתאים להפליג ${whenWords(selectedDate)}?</div>
-      <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].long}</div>
-      <div class="why-plain">${lvl === 0 ? `${beaufortText(wMax ?? 0)}, ${seaText(wvMax ?? 0)}` : 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' ו')}</div>
+      <div class="vt">${vGlyph(lvl, true)} ${hs.title}</div>
+      <div class="why-plain">${hs.why || (wMax != null && wvMax != null ? `${beaufortText(wMax)}, ${seaText(wvMax)}` : '')}</div>
       ${(warns.length || trend || shift) ? `<div class="warnline">${ico('triangle-alert', 16)} ${[...warns, trend, shift ? 'הרוח ' + shift : ''].filter(Boolean).join(' · ')}</div>` : ''}
-      <div class="vs">${wins.length ? `${isToday ? 'השעות המתאימות שנותרו היום' : 'השעות המתאימות'}: <b>${winTxt}</b>` : '<b>אין שעות מתאימות ביום הזה</b>'}</div>
+      ${hs.later ? `<div class="vs"><b>${hs.later.replace(/(\d\d:\d\d–\d\d:\d\d)/g, '<bdi dir="ltr">$1</bdi>')}</b>${wins.some(w => w.end + 1 > ssH + 0.25) ? ' <span class="night-note">(גם אחרי השקיעה)</span>' : ''}</div>` : ''}
     </div>
     <div class="sc-card"><div id="seacard"></div></div>
 `;
@@ -773,9 +860,13 @@ function renderWeek() {
   }
   html += '</tbody></table>';
   $('week').innerHTML = html;
-  $('week').querySelectorAll('tr[data-date]').forEach(tr => tr.addEventListener('click', () => {
-    selectedDate = tr.dataset.date; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' });
-  }));
+  $('week').querySelectorAll('tr[data-date]').forEach(tr => {
+    const open = () => { selectedDate = tr.dataset.date; seaHour = null; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    tr.tabIndex = 0; tr.setAttribute('role', 'button');
+    tr.setAttribute('aria-label', 'פתח את ' + tr.querySelector('.wl b').textContent);
+    tr.addEventListener('click', open);
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  });
 }
 
 /* ===================== כרטיס ים – אינפוגרפיקה חיה ===================== */
@@ -789,7 +880,7 @@ function seaDefaultHour(date) {
 }
 
 function seaFeel(r) {
-  return comfortText(r.wave ?? 0, r.wavePer);
+  return isNum(r.wave) ? comfortText(r.wave, r.wavePer) : 'אין נתוני גלים לשעה הזו';
 }
 
 function crestPath(W, base, A, L, phase) { // קו קצף לאורך פסגות הגל
@@ -874,41 +965,43 @@ function renderSeaCard() {
   const fromSea = d != null && Math.abs(((d - COAST_NORMAL) % 360 + 540) % 360 - 180) < 70;
   const fromLand = d != null && Math.abs(((d - COAST_NORMAL) % 360 + 540) % 360 - 180) > 110;
   const v = verdict(r);
-  // גשם בשעה הנבחרת ובשלוש השעות שאחריה
-  const next = data.rows.filter(x => x.t >= r.t).slice(0, 4);
-  const wetH = next.filter(x => (x.pop ?? 0) >= 25 || (x.rain ?? 0) >= RAIN_MM);
-  const maxPop = Math.max(0, ...next.map(x => x.pop ?? 0));
-  const rainSoon = wetH.length
-    ? { wet: true, t: `סיכוי לגשם ${fmt(maxPop)}% ב-<bdi dir="ltr">${hm(wetH[0].hour)}</bdi>` }
-    : { wet: false, t: `אין גשם עד <bdi dir="ltr">${hm(Math.min(24, r.hour + 4))}</bdi>` };
-  const ssH = sunH(r.date, 'sunset'), sunset = data.daily[r.date]?.sunset.slice(11) || '';
-  const showSun = r.hour >= 14 && r.hour + 3 >= ssH && r.hour <= ssH + 4;
-  const afterSun = r.hour >= ssH;
+  const rainSoon = rainSoonText(r);
+  const sunset = data.daily[r.date]?.sunset.slice(11) || '';
+  const hourReasons = v.level === NODATA ? v.reasons.slice(0, 1) : plainReasons([r]).slice(0, 2);
   el.innerHTML = `
     <div class="sc">
       <div class="sc-art">${seaSvg(r)}
-        <div class="sc-when">${isNow ? 'עכשיו' : whenWords(selectedDate)} · <bdi dir="ltr">${hm(r.hour)}</bdi>${isNight(r) ? ' ☾' : ''}</div>
+        <div class="sc-when">${isNow ? 'תחזית לשעה הקרובה' : 'תחזית · ' + whenWords(selectedDate)} · <bdi dir="ltr">${hm(r.hour)}</bdi>${isNight(r) ? ' ☾' : ''}</div>
         <div class="sc-compass">${miniCompass(d, r.waveDir)}</div>
       </div>
       <div class="sc-nums">
           <div class="n"><span class="l">רוח</span><b><bdi dir="ltr">${fmt(r.wind)}</bdi></b><span class="u">קשר</span>${d != null ? rot(d) : ''}</div>
           <div class="n"><span class="l">משבים</span><b><bdi dir="ltr">${fmt(r.gust)}</bdi></b><span class="u">קשר</span></div>
-          <div class="n"><span class="l">גלים</span><b><bdi dir="ltr">${fmt(r.wave, 1)}</bdi></b><span class="u">מטר</span>${r.waveDir != null ? rot(r.waveDir) : ''}</div>
+          <div class="n" title="גובה גל משמעותי: הממוצע של השליש הגבוה מהגלים. גלים בודדים יכולים להיות גבוהים יותר."><span class="l">גלים</span><b><bdi dir="ltr">${fmt(r.wave, 1)}</bdi></b><span class="u">מטר</span>${r.waveDir != null ? rot(r.waveDir) : ''}</div>
         </div>
+      <div class="sc-status" style="--c:${VCOL[v.level]}">${vGlyph(v.level)} <span><b>בשעה <bdi dir="ltr">${hm(r.hour)}</bdi>: ${VERDICT[v.level].t}</b>${hourReasons.length ? ' – ' + hourReasons.join(' · ') : ''}</span></div>
       <div class="sc-cap">
         <span class="sc-feel">${seaFeel(r)}</span>
         <span class="sc-dirs">רוח ${from8(d)}${fromSea ? ' (מהים)' : fromLand ? ' (מהיבשה)' : ''} · גלים ${from8(r.waveDir)}</span>
       </div>
       <div class="sc-facts">
         <span class="fact${rainSoon.wet ? ' wet' : ''}">${ico(rainSoon.wet ? 'cloud-rain' : 'cloud-off', 16)} <span class="ft">${rainSoon.t}</span></span>
-        ${showSun ? `<span class="fact">${ico('sunset', 16)} <span class="ft">שקיעה <bdi dir="ltr">${sunset}</bdi></span></span>` : ''}
+        ${sunset ? `<span class="fact">${ico('sunset', 16)} <span class="ft">שקיעה <bdi dir="ltr">${sunset}</bdi></span></span>` : ''}
       </div>
       <div class="sc-hours" role="tablist" aria-label="בחירת שעה">
         ${hours.map(h => { const x = byH.get(h); if (!x) return ''; const lv = verdict(x).level;
-          return `<button class="sh${h === seaHour ? ' on' : ''}${isNight(x) ? ' nt' : ''}" data-h="${h}" role="tab" aria-selected="${h === seaHour}"><span class="hh">${pad2(h)}</span><i class="d${lv}"></i></button>`; }).join('')}
+          const vx = verdict(x), why = vx.level ? ' – ' + (vx.level === NODATA ? vx.reasons[0] : plainReasons([x]).join(', ')) : '';
+          return `<button class="sh${h === seaHour ? ' on' : ''}${isNight(x) ? ' nt' : ''}" data-h="${h}" role="tab" aria-selected="${h === seaHour}" tabindex="${h === seaHour ? 0 : -1}" aria-label="${hm(h)}: ${VERDICT[lv].t}${why}${isNight(x) ? ', אחרי השקיעה' : ''}"><span class="hh">${pad2(h)}</span><i class="d${lv}"></i></button>`; }).join('')}
       </div>
     </div>`;
   el.querySelectorAll('.sh').forEach(b => b.addEventListener('click', () => { seaHour = +b.dataset.h; renderSeaCard(); }));
+  el.querySelector('.sc-hours').addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault(); e.stopPropagation();
+    const list = [...el.querySelectorAll('.sh')], i = list.findIndex(b => +b.dataset.h === seaHour);
+    const j = Math.max(0, Math.min(list.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1))); // השעות מסודרות משמאל לימין
+    seaHour = +list[j].dataset.h; renderSeaCard(); el.querySelector('.sh.on')?.focus();
+  });
   const on = el.querySelector('.sh.on'), bar = el.querySelector('.sc-hours');
   if (on && bar) { const a = on.getBoundingClientRect(), c = bar.getBoundingClientRect(); bar.scrollLeft += (a.left + a.width / 2) - (c.left + c.width / 2); }
 }
@@ -934,23 +1027,44 @@ function pointOfSail(windFrom, heading) {
   return { t: 'רוח מאחור – להיזהר מג׳ייב', c: 'var(--warn)' };
 }
 
+function rowIndex() {
+  if (!(data._idx instanceof Map)) Object.defineProperty(data, '_idx', { value: new Map(data.rows.map(r => [r.t, r])), enumerable: false, configurable: true, writable: true });
+  return data._idx;
+}
+function addHours(date, hour, k) {
+  const d = new Date(Date.parse(`${date}T${pad2(hour)}:00:00Z`) + k * 3600e3).toISOString();
+  return d.slice(0, 13) + ':00';
+}
+// כל שעה מהיציאה ועד שעת החזרה (כולל) – שעה שאין לה תחזית מסומנת כחסרה
 function planRows(p) {
-  return data.rows.filter(r => r.date === p.date && r.hour >= p.from && r.hour < p.to);
+  const idx = rowIndex(), out = [];
+  for (let k = 0; k <= p.to - p.from; k++) {
+    const t = addHours(p.date, p.from, k);
+    out.push(idx.get(t) || { t, date: t.slice(0, 10), hour: +t.slice(11, 13), models: {}, placeholder: true });
+  }
+  return out;
 }
 function planVerdict(rows) {
-  const lv = rows.map(r => verdict(r).level);
-  const red = lv.filter(l => l === 2).length, yel = lv.filter(l => l === 1).length;
-  if (red / Math.max(1, lv.length) > 0.3) return 2;
+  const vs = rows.map(verdict), n = Math.max(1, vs.length);
+  if (vs.some(v => v.hazard)) return 2;                 // סכנה (רעמים) – לא נבלעת בממוצע
+  const red = vs.filter(v => v.level === 2).length, yel = vs.filter(v => v.level === 1).length;
+  if (red / n > 0.3) return 2;
+  if (vs.some(v => v.level === NODATA)) return NODATA;  // חסר מידע לחלק מהשעות
   if (red || yel) return 1;
   return 0;
 }
 function modelConfidence(rows) {
-  const spreads = rows.map(r => { const w = Object.values(r.models || {}).map(m => m.wind).filter(v => v != null); return w.length >= 2 ? Math.max(...w) - Math.min(...w) : null; }).filter(v => v != null);
-  if (!spreads.length) return null;
-  const avg = spreads.reduce((a, b) => a + b, 0) / spreads.length;
-  if (avg < 4) return { t: 'גבוה', c: 'var(--go)', d: `המודלים מסכימים (פער ממוצע ${fmt(avg, 1)}kt)` };
-  if (avg < 7) return { t: 'בינוני', c: 'var(--warn)', d: `פער בין המודלים ${fmt(avg, 1)}kt – בדוק שוב לפני היציאה` };
-  return { t: 'נמוך', c: 'var(--nogo)', d: `המודלים חלוקים (${fmt(avg, 1)}kt) – התחזית לא ודאית` };
+  // מודד רק הסכמה בין מודלי רוח – לא את אמינות תחזית הגלים
+  const per = rows.map(r => { const w = Object.values(r.models || {}).map(m => m.wind).filter(isNum); return w.length >= 2 ? { spread: Math.max(...w) - Math.min(...w), n: w.length, hour: r.hour } : null; }).filter(Boolean);
+  if (!per.length) return null;
+  const n = Math.max(...per.map(p => p.n));
+  const worst = per.reduce((a, b) => b.spread > a.spread ? b : a);
+  const avg = per.reduce((a, b) => a + b.spread, 0) / per.length;
+  const label = `הסכמה בין ${n} מודלי רוח`;
+  const d = `פער ממוצע ${fmt(avg, 0)} קשר, פער מרבי ${fmt(worst.spread, 0)} קשר ב-${hm(worst.hour)}`;
+  if (avg < 4 && worst.spread < 7) return { t: 'גבוהה', c: 'var(--go)', label, d };
+  if (avg < 7 && worst.spread < 11) return { t: 'בינונית', c: 'var(--warn)', label, d: d + ' – כדאי לבדוק שוב לפני היציאה' };
+  return { t: 'נמוכה', c: 'var(--nogo)', label, d: d + ' – התחזית לא ודאית' };
 }
 function reasonsByHour(rows) {
   const map = new Map();
@@ -973,10 +1087,10 @@ function findAlternatives(p) {
   const dates = [...new Set(data.rows.map(r => r.date))];
   for (const d of dates) {
     for (let h = 0; h + dur <= 24; h++) {
-      const rows = data.rows.filter(r => r.date === d && r.hour >= h && r.hour < h + dur);
-      if (rows.length < dur || rows[0].t < nowT.slice(0, 13)) continue;
-      if (rows.some(r => isNight(r) || verdict(r).level > 0)) continue;
-      const dist = Math.abs((new Date(d + 'T' + pad2(h) + ':00') - new Date(p.date + 'T' + pad2(p.from) + ':00')) / 3600e3);
+      const rows = planRows({ date: d, from: h, to: h + dur });
+      if (rows[0].t.slice(0, 13) < nowT.slice(0, 13)) continue;
+      if (rows.some(r => verdict(r).level !== 0 || (!settings.night && isNight(r)))) continue;
+      const dist = Math.abs((tMs(rows[0].t) - tMs(`${p.date}T${pad2(p.from)}:00`)) / 3600e3);
       out.push({ date: d, from: h, to: h + dur, dist });
     }
   }
@@ -1046,7 +1160,7 @@ function planText(p, rows, s, lvl) {
   const course = COURSES.find(c => c.v === p.course)?.t || '';
   return [
     `⛵ הפלגה ממרינה הרצליה – ${l.name} ${l.sub.replace(/^\S+ /, '')}, \u2066${hm(p.from)}–${hm(p.to)}\u2069${p.course ? ' · ' + course : ''}`,
-    `${['✅ מתאים להפלגה', '⚠️ אפשר, אבל בזהירות', '⛔ לא מומלץ להפליג'][lvl]}`,
+    `${['✅ מתאים להפלגה', '⚠️ אפשר, אבל בזהירות', '⛔ לא מומלץ להפליג', '❔ אין מספיק נתונים להמלצה'][lvl]}`,
     `🌬️ רוח ${dir8(s.md)} ${range(s.wMin, s.wMax)} קשר, משבים עד ${fmt(s.gMax)}`,
     `🌊 גלים ${range(s.wvMin, s.wvMax, 1)} מ', מחזור ${fmt(s.per)} שנ' – ${seaText(s.wvMax ?? 0)}`,
     `${s.wet ? '🌧️' : '☀️'} ${s.rainT} · ${range(s.tMin, s.tMax)}°C · מים ${fmt(s.sst)}°C`,
@@ -1096,11 +1210,13 @@ function renderPlan() {
   const out = $('p-result');
   if (!rows.length) { out.innerHTML = '<div class="loading">אין תחזית לטווח הזה</div>'; return; }
   if (rows[rows.length - 1].t.slice(0, 13) < nowT.slice(0, 13)) {
-    // הזמן עבר – עוברים אוטומטית לאותן שעות ביום הבא
+    // הזמן עבר – מציעים במפורש לעבור למחר (לא מחליפים יום בלי לומר)
     const dates = [...new Set(data.rows.map(r => r.date))];
     const next = dates[dates.indexOf(plan.date) + 1];
-    if (next) { plan = { ...plan, date: next }; fillPlanForm(); return renderPlan(); }
-    out.innerHTML = '<div class="loading">הזמן הזה כבר עבר – בחר זמן עתידי</div>'; return;
+    out.innerHTML = `<div class="notice">השעות <bdi dir="ltr">${hm(plan.from)}–${hm(plan.to)}</bdi> של ${dayLabel(plan.date, nowT.slice(0, 10)).name} כבר עברו.
+      ${next ? `<button id="p-next" class="primary">לבדוק את אותן שעות ב${whenWords(next) === 'מחר' ? 'מחר' : whenWords(next).replace(/^ב/, '')}</button>` : ''}</div>`;
+    if (next) $('p-next').addEventListener('click', () => { plan = { ...plan, date: next }; fillPlanForm(); store.set('local', 'plan_v1', plan); renderPlan(); });
+    return;
   }
 
   const vals = k => rows.map(r => r[k]).filter(v => v != null);
@@ -1132,7 +1248,7 @@ function renderPlan() {
     return `<b style="color:${x > 0 ? 'var(--gust)' : 'var(--go)'}">${x > 0 ? '▲' : '▼'} <bdi dir="ltr">${fmt(Math.abs(x), d)}</bdi> ${unit}</b>`;
   };
   const condCard = (title, r) => `
-    <div class="cond"><div class="k">${title} · <bdi dir="ltr">${r === ret && ret !== dep ? hm(plan.to) : hm(r.hour)}</bdi></div>
+    <div class="cond"><div class="k">${title} · <bdi dir="ltr">${hm(r.hour)}</bdi>${r.placeholder ? ' · <span class="muted">אין תחזית לשעה הזו</span>' : ''}</div>
       <div class="row">${ICON.wind} <b><bdi dir="ltr">${fmt(r.wind)}</bdi></b> קשר <span class="muted">(משבים ${fmt(r.gust)})</span> ${dirChip(r.dir)}</div>
       <div class="row">${ICON.wave} <b>${fmt(r.wave, 1)}</b> מ׳ <span class="muted">· ${fmt(r.wavePer)} שנ׳</span> · ${wxIcon(r.code, isNight(r))} ${fmt(r.temp)}°</div></div>`;
 
@@ -1154,8 +1270,8 @@ function renderPlan() {
       <div class="hero-badge" style="--c:${VCOL[lvl]}">
         <div class="q">ההפלגה שתכננת:</div>
         <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].long}</div>
-        <div class="vs">${l.name} · <bdi dir="ltr">${hm(plan.from)}–${hm(plan.to)}</bdi> · <span style="white-space:nowrap">${dur === 1 ? 'שעה' : dur + ' שעות'}</span></div>
-        ${conf ? `<div class="conf" title="${conf.d}" style="--cc:${conf.c}">ביטחון בתחזית: <b>${conf.t}</b></div>` : ''}
+        <div class="vs">${l.name} · <bdi dir="ltr">${hm(plan.from)}–${hm(plan.to)}</bdi> · <span style="white-space:nowrap">${dur === 1 ? 'שעה' : dur + ' שעות'}</span> <span class="muted">(כולל שעת החזרה)</span></div>
+        ${conf ? `<div class="conf" title="${conf.d}" style="--cc:${conf.c}">${conf.label}: <b>${conf.t}</b></div><div class="muted small">${conf.d}</div>` : ''}
       </div>
       <div class="p-mid">
         <div class="p-stats">
@@ -1174,7 +1290,7 @@ function renderPlan() {
       <div class="box"><h5>לפני היציאה</h5>
         ${checklist(rows, s).map(i => `<div class="ck">${i}</div>`).join('')}
       </div>
-      <div class="box"><h5>מפרשים</h5>
+      <div class="box"><h5>מפרשים <span class="muted small">(הערכה כללית ליאכטה של 12 מ׳ – תלוי בסירה ובצוות)</span></h5>
         ${segs.map(sg => `<div class="seg-row"><bdi dir="ltr" class="muted">${hm(sg.start)}–${hm(sg.end + 1)}</bdi> <span style="color:${VTXT[sg.lvl]}">${lvl > 0 ? sg.t.replace(' – תנאי הפלגה מצוינים', '') : sg.t}</span></div>`).join('')}
       </div>
     </div>
@@ -1203,7 +1319,7 @@ function renderPlan() {
       </div>
     </details>`;
 
-  renderTimeline(plan.date, plan.from, plan.to - 1, 'p-timeline');
+  renderTimeline(plan.date, plan.from, Math.min(23, plan.to), 'p-timeline');
   out.querySelectorAll('.alt').forEach(b => b.addEventListener('click', () => {
     plan = { ...plan, date: b.dataset.d, from: +b.dataset.f, to: +b.dataset.t }; fillPlanForm(); renderPlan();
   }));
@@ -1224,21 +1340,24 @@ function onPlanChange() {
 }
 
 /* ===================== טעינה ===================== */
+let loadingNow = false;
 async function load(force) {
+  if (loadingNow) return;
+  loadingNow = true;
   const btn = $('refresh-btn');
   btn.disabled = true; btn.classList.add('spin');
-  const cacheKey = 'cache_v4';
+  const cacheKey = 'cache_v5';
   const cached = await store.get('local', cacheKey);
   const sameLoc = cached && cached.loc === locKey();
   if (cached && sameLoc && !data) { data = cached.data; renderAll(); }
 
   if (!force && cached && sameLoc && Date.now() - cached.data.fetchedAt < CACHE_MAX_AGE) {
     showBanner(cached.data.errors?.join(' · '), false);
-    btn.disabled = false; btn.classList.remove('spin');
+    btn.disabled = false; btn.classList.remove('spin'); loadingNow = false;
     return;
   }
   try {
-    data = await fetchAll();
+    data = await fetchAll(core => { data = core; renderAll(); });
     await store.set('local', cacheKey, { loc: locKey(), data });
     showBanner(data.errors.join(' · '), false);
     renderAll();
@@ -1246,7 +1365,7 @@ async function load(force) {
     if (data) showBanner(`אין חיבור – מוצג מידע שמור. (${e.message})`, true);
     else { showBanner(`שגיאה בטעינת התחזית: ${e.message}`, true); $('loading').textContent = 'לא הצלחתי לטעון תחזית.'; }
   } finally {
-    btn.disabled = false; btn.classList.remove('spin');
+    btn.disabled = false; btn.classList.remove('spin'); loadingNow = false;
   }
 }
 const locKey = () => [settings.windLat, settings.windLon, settings.waveLat, settings.waveLon].join(',');
@@ -1260,6 +1379,12 @@ function windyUrl() {
     `&width=776&height=470&zoom=9&level=surface&overlay=${windyOverlay}&product=${product}&menu=&message=true&marker=true` +
     `&calendar=now&pressure=true&type=map&location=coordinates&detail=&metricWind=kt&metricTemp=%C2%B0C&radarRange=-1`;
 }
+function windyTimeout() {
+  setTimeout(() => {
+    const w = $('windy-frame').parentElement;
+    if (!w.classList.contains('loaded')) w.querySelector('.windy-loading').innerHTML = 'המפה לא נטענה. <a href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener">פתחו ב-Windy</a>';
+  }, 15000);
+}
 function showView(v) {
   if (window.scrollY > 0) window.scrollTo(0, 0);
   ['brief', 'plan', 'table', 'windy'].forEach(k => {
@@ -1270,7 +1395,7 @@ function showView(v) {
   store.set('local', 'view_v3', v);
   track('view-' + v);
   if ((v === 'plan' || v === 'brief') && data) renderAll();
-  if (v === 'windy') { const u = windyUrl(); if ($('windy-frame').src !== u) $('windy-frame').src = u; }
+  if (v === 'windy') { const u = windyUrl(); if ($('windy-frame').src !== u) { $('windy-frame').parentElement.classList.remove('loaded'); $('windy-frame').src = u; windyTimeout(); } }
 }
 
 /* ===================== מפת נקודות תחזית ===================== */
@@ -1361,15 +1486,35 @@ function fillSettings(s) {
   FIELDS.forEach(f => $('s-' + f).value = s[f]);
   $('s-step').value = String(s.step);
   $('s-showModels').checked = !!s.showModels;
+  if ($('s-night')) $('s-night').checked = s.night !== false;
+  $('settings-errors').classList.add('hidden');
+}
+// אימות הגדרות: ערכים מספריים בטווח סביר; ערך לא תקין נשאר כמו שהיה
+const LIMITS = {
+  maxWind: [3, 50, 'רוח עד'], maxGust: [3, 60, 'משבים עד'], maxWave: [0.2, 5, 'גלים עד'], minPeriod: [0, 15, 'מחזור גל מינימלי'],
+  hourFrom: [0, 23, 'משעה'], hourTo: [0, 23, 'עד שעה'], windLat: [29.5, 33.5, 'קו רוחב רוח'], windLon: [34, 35.6, 'קו אורך רוח'],
+  waveLat: [29.5, 33.5, 'קו רוחב גלים'], waveLon: [33.5, 35.6, 'קו אורך גלים']
+};
+function validateSettings(input, prev = DEFAULTS) {
+  const out = { ...prev }, errors = [];
+  for (const [k, [lo, hi, label]] of Object.entries(LIMITS)) {
+    const v = typeof input[k] === 'number' ? input[k] : parseFloat(input[k]);
+    if (!Number.isFinite(v) || v < lo || v > hi) { errors.push(`${label}: צריך להיות בין ${lo} ל-${hi}`); continue; }
+    out[k] = (k === 'hourFrom' || k === 'hourTo') ? Math.round(v) : v;
+  }
+  if (out.maxGust < out.maxWind) errors.push('המשבים לא יכולים להיות נמוכים מהרוח');
+  if (out.hourTo < out.hourFrom) { errors.push('"עד שעה" צריך להיות אחרי "משעה"'); out.hourTo = prev.hourTo; out.hourFrom = prev.hourFrom; }
+  out.step = [1, 2, 3].includes(+input.step) ? +input.step : prev.step;
+  out.showModels = !!input.showModels;
+  out.night = input.night !== undefined ? !!input.night : prev.night;
+  return { s: out, errors };
 }
 function readSettings() {
-  const s = { ...settings };
-  FIELDS.forEach(f => { const v = parseFloat($('s-' + f).value); if (!Number.isNaN(v)) s[f] = v; });
-  s.hourFrom = Math.max(0, Math.min(23, Math.round(s.hourFrom)));
-  s.hourTo = Math.max(s.hourFrom, Math.min(23, Math.round(s.hourTo)));
-  s.step = parseInt($('s-step').value, 10) || 1;
-  s.showModels = $('s-showModels').checked;
-  return s;
+  const raw = {};
+  FIELDS.forEach(f => raw[f] = $('s-' + f).value);
+  raw.step = $('s-step').value; raw.showModels = $('s-showModels').checked;
+  raw.night = $('s-night') ? $('s-night').checked : settings.night;
+  return validateSettings(raw, settings);
 }
 
 /* ===================== אתחול ===================== */
@@ -1403,8 +1548,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     windyOverlay = b.dataset.overlay;
     $('windy-frame').src = windyUrl();
   }));
-  const openSettings = () => { fillSettings(settings); $('settings').classList.remove('hidden'); document.body.classList.add('modal-open'); $('settings').scrollTop = 0; };
-  const closeSettings = () => { $('settings').classList.add('hidden'); document.body.classList.remove('modal-open'); };
+  // חלון הגדרות: פוקוס נכנס לחלון, נשאר בו (Tab), וחוזר לכפתור שפתח אותו
+  const openSettings = () => {
+    fillSettings(settings); $('settings').classList.remove('hidden'); document.body.classList.add('modal-open'); $('settings').scrollTop = 0;
+    setTimeout(() => $('settings-close').focus(), 0);
+  };
+  const closeSettings = () => { $('settings').classList.add('hidden'); document.body.classList.remove('modal-open'); $('settings-btn').focus(); };
+  $('settings').addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const f = [...$('settings').querySelectorAll('button, input, select, summary, a[href], [tabindex]:not([tabindex="-1"])')].filter(x => x.offsetParent !== null);
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  });
   $('settings-btn').addEventListener('click', () => $('settings').classList.contains('hidden') ? openSettings() : closeSettings());
   $('settings-close').addEventListener('click', closeSettings);
   $('windy-frame').addEventListener('load', () => $('windy-frame').parentElement.classList.add('loaded'));
@@ -1413,13 +1569,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('settings-reset').addEventListener('click', () => { fillSettings(DEFAULTS); drawPtMap(true); });
   $('settings-save').addEventListener('click', async () => {
     const before = locKey();
-    settings = readSettings();
+    const { s: next, errors } = readSettings();
+    $('settings-errors').innerHTML = errors.map(e => `<div>${e}</div>`).join('');
+    $('settings-errors').classList.toggle('hidden', !errors.length);
+    if (errors.length) { $('settings-errors').focus(); return; }
+    settings = next;
     await store.set('sync', 'settings_v3', settings);
-    $('settings').classList.add('hidden'); document.body.classList.remove('modal-open');
+    closeSettings();
     if (locKey() !== before) { data = null; await load(true); } else renderAll();
   });
   document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    // חצים מחליפים יום רק כשהפוקוס לא נמצא על פקד אחר (שעות, טפסים, חלון הגדרות)
+    const t = e.target;
+    if (t !== document.body && t !== document.documentElement) return;
+    if (!$('settings').classList.contains('hidden')) return;
     if (e.key === 'ArrowLeft') $('next-day').click();
     if (e.key === 'ArrowRight') $('prev-day').click();
   });
@@ -1448,6 +1611,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       setTheme(cur === 'light' ? 'dark' : cur === 'dark' ? null : 'light');
     });
   }
+  setInterval(() => {
+    renderUpdated();
+    if (document.visibilityState === 'visible' && data && Date.now() - data.fetchedAt > CACHE_MAX_AGE) load(true);
+  }, 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && data && Date.now() - data.fetchedAt > CACHE_MAX_AGE) load(true);
   });
