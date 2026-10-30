@@ -124,7 +124,7 @@ const clipped = p => p.evaluate(() => {
     ok(ws === from + ':00', 'שעת היציאה היא תחילת החלון', `${win} / ${from}`);
     ok(/כן, מתאים/.test(await txt(p, '#p-result .dc-title')), 'החלון שהוצע עובר את בדיקת המתכנן – בלי סתירה', await txt(p, '#p-result .dc-title'));
     ok(/משך בתוך החלון/.test(await txt(p, '.dur')), 'אפשר לבחור משך בתוך החלון');
-    await p.click('.dur .chip:last-child'); await p.waitForTimeout(200);
+    await p.click('.dur .dchip:last-child'); await p.waitForTimeout(200);
     const to = await p.$eval('#p-to', e => e.value.padStart(2, '0'));
     ok(we === to + ':00', '"עד סוף החלון" קובע חזרה בסוף החלון', `${win} / ${to}`);
     ok(/כן, מתאים/.test(await txt(p, '#p-result .dc-title')), 'גם כל החלון מאושר במתכנן');

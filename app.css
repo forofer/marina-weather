@@ -541,8 +541,8 @@ body.modal-open { overflow: hidden; }
 .trip-line b { color: var(--ink); font-weight: 600; }
 .trip-line .ico { color: var(--ink-3); }
 .dur { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: var(--gap); }
-.chip { min-height: 2.5rem; padding: 0.25rem 0.85rem; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 0.875rem; font-weight: 500; }
-.chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.dchip { min-height: 2.5rem; padding: 0.25rem 0.85rem; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 0.875rem; font-weight: 500; }
+.dchip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .p-top { display: grid; gap: var(--gap); margin-bottom: var(--gap); }
 .legs { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9375rem; }
 .legs-h { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--ink-2); }

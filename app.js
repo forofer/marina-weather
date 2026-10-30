@@ -659,7 +659,7 @@ function renderPlan() {
   let durHtml = '';
   if (w) {
     const max = w.end - plan.from, opts = [...new Set([2, 3, 4, 6].filter(d => d < max).concat(max))];
-    durHtml = `<div class="dur" role="group" aria-label="משך ההפלגה בתוך החלון"><span class="pick-l">משך בתוך החלון ${span(w.start, w.end)}:</span>${opts.map(d => `<button class="chip${plan.to - plan.from === d ? ' on' : ''}" data-dur="${d}" aria-pressed="${plan.to - plan.from === d}">${d === max ? 'עד סוף החלון' : hoursTxt(d)}</button>`).join('')}</div>`;
+    durHtml = `<div class="dur" role="group" aria-label="משך ההפלגה בתוך החלון"><span class="pick-l">משך בתוך החלון ${span(w.start, w.end)}:</span>${opts.map(d => `<button class="dchip${plan.to - plan.from === d ? ' on' : ''}" data-dur="${d}" aria-pressed="${plan.to - plan.from === d}">${d === max ? 'עד סוף החלון' : hoursTxt(d)}</button>`).join('')}</div>`;
   }
   const tripLine = `<div class="trip-line"><span>${ico('compass', 16)}<b>${n.full}</b></span><span>יציאה <b>${bdi(hm(plan.from))}</b></span><span>חזרה <b>${bdi(plan.to === 24 ? '24:00' : hm(plan.to))}</b></span><span class="muted">${hoursTxt(dur)}</span></div>`;
 
