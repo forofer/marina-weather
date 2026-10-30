@@ -559,3 +559,7 @@ b, .v, .wn, .sc-nums b, .hh, table td, table th, .t-h, .t-v, .t-g, .t-w, .t-p, .
 .hero-badge .vt { font: 700 23px/30px var(--num); }
 .vglyph.big { width: 28px; height: 28px; }
 .hero-badge .why-plain { font-size: 15px; line-height: 22px; }
+
+/* ללא "פרטים לסקיפר": החלטה וכרטיס ים זה מעל זה */
+.hero { grid-template-columns: minmax(0, 1fr) !important; max-width: 760px; margin: 0 auto; }
+.warnline { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--warn); text-align: center; }

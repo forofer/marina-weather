@@ -646,23 +646,12 @@ function renderHero() {
       <div class="q">האם מתאים להפליג ${whenWords(selectedDate)}?</div>
       <div class="vt">${vGlyph(lvl, true)} ${VERDICT[lvl].long}</div>
       <div class="why-plain">${lvl === 0 ? `${beaufortText(wMax ?? 0)}, ${seaText(wvMax ?? 0)}` : 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' ו')}</div>
+      ${(warns.length || trend || shift) ? `<div class="warnline">${ico('triangle-alert', 16)} ${[...warns, trend, shift ? 'הרוח ' + shift : ''].filter(Boolean).join(' · ')}</div>` : ''}
       <div class="vs">${wins.length ? `${isToday ? 'השעות המתאימות שנותרו היום' : 'השעות המתאימות'}: <b>${winTxt}</b>` : '<b>אין שעות מתאימות ביום הזה</b>'}</div>
     </div>
     <div class="sc-card"><div id="seacard"></div></div>
-    <div class="hero-lines">
-      ${warns.length ? `<div class="line warn"><span class="ic">${ico('triangle-alert', 18)}</span><span>${warns.join(' · ')}</span></div>` : ''}
-      <details class="skipper" id="skipper-details">
-        <summary>פרטים לסקיפר</summary>
-        <div class="line"><span class="ic">${ico('sailboat', 18)}</span><span style="color:${VTXT[sail.lvl]}"><b>מפרשים:</b> ${sail.t}</span></div>
-        <div class="line"><span class="ic">${ico('wind', 18)}</span><span>${beaufortText(wMax ?? 0)}${trend ? ' · ' + trend : ''}${shift ? ' · <b class="shift">↻ ' + shift + '</b>' : ''}</span></div>
-        <div class="line"><span class="ic">${ico('waves', 18)}</span><span>מחזור גלים ממוצע ${fmt(per, 0)} שניות · מים ${fmt(mx('sst'), 0)}°</span></div>
-        <div class="line"><span class="ic">${ico('compass', 18)}</span><span>${coastNote(md)}</span></div>
-      </details>
-    </div>`;
+`;
   renderSeaCard();
-  const det = $('skipper-details');
-  try { if (localStorage.getItem('skipperOpen') === '1') det.open = true; } catch (_) {}
-  det.addEventListener('toggle', () => { try { localStorage.setItem('skipperOpen', det.open ? '1' : '0'); } catch (_) {} });
 }
 
 function svgArrow(cx, cy, deg, size, color) {
