@@ -37,10 +37,19 @@ async function open(b, { vp = { width: 390, height: 844 }, scheme = 'light', mar
 
   console.log('נתונים ישנים');
   {
-    const { p, ctx } = await open(b, { ageMs: 5 * 3600e3 });
-    // מנתקים רשת כדי שהנתונים הישנים יישארו
-    const txt = await p.textContent('#updated');
-    ok(/התחזית נמשכה/.test(txt), 'מוצג גיל הנתונים', txt);
+    // טעינה רגילה שומרת מטמון; אחר כך מנתקים רשת ומקדמים את השעון ב-5 שעות
+    const { p, ctx, errs } = await open(b);
+    ok(/התחזית נמשכה/.test(await p.textContent('#updated')), 'מוצג גיל הנתונים');
+    await p.unrouteAll(); await p.route(/open-meteo|goatcounter|zgo|fonts\./, r => r.abort('internetdisconnected'));
+    await p.addInitScript(() => { const n = Date.now; Date.now = () => n() + 5 * 3600e3; });
+    await p.reload(); await p.waitForTimeout(1200);
+    const upd = await p.textContent('#updated');
+    ok(/לא עדכני/.test(upd), 'בלי רשת ועם נתונים בני 5 שעות – כתוב "לא עדכני"', upd);
+    ok(await p.$eval('#updated', e => e.classList.contains('stale')), 'הכיתוב מסומן חזותית כישן');
+    const ban = await p.textContent('#banner');
+    ok(/אין חיבור – מוצג מידע שמור/.test(ban) && await p.isVisible('#banner'), 'מוצגת הודעה שאין חיבור ושמוצג מידע שמור', ban);
+    ok(await p.$$eval('.hero-badge', x => x.length) > 0, 'התחזית השמורה עדיין מוצגת');
+    ok(errs.length === 0, 'אין שגיאות JS', errs.join(' | '));
     await ctx.close();
   }
 

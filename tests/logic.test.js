@@ -12,7 +12,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['icons.js', 'app.js']) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
+for (const f of ['core.js']) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 const run = code => vm.runInContext(code, ctx);
 
 let pass = 0, fail = 0;

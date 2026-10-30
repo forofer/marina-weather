@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Rubik:wght@500;600;700&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=4.2">
+  <link rel="stylesheet" href="app.css?v=4.3">
 </head>
 <body class="web">
 <div class="app">
@@ -43,7 +43,7 @@
     <button id="view-windy" class="seg" title="מפת Windy"><span class="ti" data-ico="map" data-s="22"></span><span class="tl">מפה</span></button>
   </nav>
 
-  <div class="intro hidden" id="intro-box"><p id="intro"></p><button id="intro-close" class="icon-btn ghost" aria-label="סגור הסבר"><span data-ico="x" data-s="18"></span></button></div>
+  <div class="intro hidden" id="intro-box"><div id="intro"></div><button id="intro-close" class="icon-btn ghost" aria-label="סגור הסבר"><span data-ico="x" data-s="18"></span></button></div>
   <div id="banner" class="banner hidden"></div>
 
   <nav class="days" id="days-nav">
@@ -150,8 +150,10 @@
 
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=4.2"></script>
-  <script src="app.js?v=4.2"></script>
+  <script src="icons.js?v=4.3"></script>
+  <script src="core.js?v=4.3"></script>
+  <script src="data.js?v=4.3"></script>
+  <script src="app.js?v=4.3"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
