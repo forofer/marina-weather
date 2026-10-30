@@ -132,5 +132,59 @@ test('בלי הדגל, טווח רגיל ממשיך עד סוף השעה', () =>
   ok(/14:00–15:00/.test(r), r);
 });
 
+console.log('חלון מתאים מול המתכנן');
+test('רגרסיה 4/11: חלון 06–08 ירוק וראות נמוכה ב-09 → החלון מסתיים ב-08:00 ועובר את המתכנן', () => {
+  // 06–08 בתוך הספים, ב-09 ראות נמוכה (בזהירות), מ-10 גלים גבוהים
+  const over = { 9: { vis: 1500 } };
+  for (let h = 10; h < 24; h++) over[h] = { wave: 2.2 };
+  setData(day('2026-11-02', over), '2026-11-02T05:00');
+  const hs = run(`heroStatus('2026-11-02')`);
+  ok(hs.wins.length >= 1, 'יש חלון');
+  const w = hs.wins[0];
+  eq([w.start, w.end], [6, 8], 'גבולות החלון');
+  ok(/06:00–08:00/.test(hs.title + ' ' + hs.later), hs.later);
+  ok(!/09:00/.test(hs.later), 'החלון לא מציג 09:00 כשעה מתאימה: ' + hs.later);
+  eq(run(`planVerdict(planRows(windowPlan(heroStatus('2026-11-02').wins[0], '2026-11-02')))`), 0, 'המתכנן מאשר את החלון');
+  // והפלגה שמסתיימת ב-09:00 אכן לא "מתאים" – בדיוק מה שהמשתמש ראה
+  ok(run(`planVerdict(planRows({ date: '2026-11-02', from: 6, to: 9 }))`) > 0, 'עד 09:00 – לא ירוק');
+});
+test('כל חלון שמוצע כמתאים עובר את בדיקת המתכנן (ימים אקראיים)', () => {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let checked = 0;
+  for (let k = 0; k < 60; k++) {
+    const over = {};
+    for (let h = 0; h < 24; h++) { const x = rnd(); over[h] = x < 0.15 ? { wave: 1.8 } : x < 0.25 ? { gust: 25 } : x < 0.3 ? { vis: 1500 } : x < 0.33 ? { wave: null } : {}; }
+    setData(day('2026-11-02', over), '2026-11-02T05:00');
+    const n = run(`heroStatus('2026-11-02').wins.length`);
+    for (let i = 0; i < n; i++) {
+      eq(run(`planVerdict(planRows(windowPlan(heroStatus('2026-11-02').wins[${i}], '2026-11-02')))`), 0, `יום ${k} חלון ${i}`);
+      checked++;
+    }
+  }
+  ok(checked > 20, 'נבדקו מספיק חלונות: ' + checked);
+});
+test('כמה חלונות: הארוך ביותר מסומן, וכולם מוצגים לפי השעה', () => {
+  const over = { 9: { wave: 2 }, 10: { wave: 2 } };
+  setData(day('2026-11-02', over), '2026-11-02T05:00');
+  const hs = run(`heroStatus('2026-11-02')`);
+  ok(hs.wins.length === 2, 'שני חלונות');
+  ok(hs.wins[0].start < hs.wins[1].start, 'לפי סדר השעות');
+  eq([hs.best.start, hs.best.end], [11, 21], 'הארוך ביותר: ' + JSON.stringify(hs.best));
+});
+
+console.log('ניסוח');
+test('אין הכללה על חצי רוח לאורך החוף, וזווית ההפלגה מחושבת לכל כיוון', () => {
+  const t = run(`coastNote(200)`);
+  ok(!/חצי רוח/.test(t), t);
+  const c = run(`courseNotes(270).map(x => x.t + ':' + x.p.t).join(' | ')`);
+  ok(/צפונה \(נתניה\):חצי רוח/.test(c) && /מערבה – לים הפתוח:מול הרוח/.test(c), c);
+  // רוח מצפון: צפונה זה מול הרוח, ולא "חצי רוח"
+  ok(/צפונה \(נתניה\):מול הרוח/.test(run(`courseNotes(10).map(x => x.t + ':' + x.p.t).join(' | ')`)));
+});
+test('ניסוחי נוחות מרוככים', () => {
+  const all = [0.1, 0.4, 0.8, 1.2, 2].map(h => run(`comfortText(${h}, 7)`)).join(' | ');
+  ok(!/נעים לכולם|ירגיש לא טוב|לא מתאים לאורחים/.test(all), all);
+});
+
 console.log(`\n${pass} עברו, ${fail} נכשלו`);
 process.exit(fail ? 1 : 0);

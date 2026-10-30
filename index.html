@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=5.0">
+  <link rel="stylesheet" href="app.css?v=5.1">
 </head>
 <body>
 <div class="app">
@@ -46,7 +46,8 @@
   <div class="intro hidden" id="intro-box"><div id="intro"></div><button id="intro-close" class="icon-btn" aria-label="סגור הסבר"><span data-ico="x" data-s="18"></span></button></div>
   <div id="banner" class="banner hidden" role="status"></div>
 
-  <nav class="days" id="days-nav" aria-label="בחירת יום">
+  <nav class="days" id="days-nav" aria-labelledby="pick-day-l">
+    <span class="pick-l" id="pick-day-l">בחר יום</span>
     <button id="prev-day" class="day-arrow" aria-label="יום קודם">‹</button>
     <div id="day-tabs" class="day-tabs"></div>
     <button id="next-day" class="day-arrow" aria-label="יום הבא">›</button>
@@ -58,9 +59,10 @@
     <div class="brief-grid">
       <section id="decision" aria-live="polite"></section>
       <section id="hour-card" class="card hour-card" aria-labelledby="hc-title"></section>
+      <section id="window-card" class="card window-card" aria-label="החלון המתאים"></section>
     </div>
     <section class="card trend-card" aria-labelledby="trend-title">
-      <h2 class="sec-h" id="trend-title">לאורך היום</h2>
+      <div class="sec-row"><h2 class="sec-h" id="trend-title">לאורך היום</h2><span class="hint">נגיעה בגרף בוחרת שעה</span></div>
       <div id="trend"></div>
     </section>
     <section class="week-sec" aria-labelledby="week-title">
@@ -102,16 +104,16 @@
   <main id="windy-view" class="view hidden">
     <div class="map-bar">
       <div class="seg-group" role="radiogroup" aria-label="שכבת מפה">
-        <button class="seg active" data-overlay="wind" role="radio" aria-checked="true"><span data-ico="wind" data-s="18"></span>רוח</button>
-        <button class="seg" data-overlay="gust" role="radio" aria-checked="false"><span data-ico="gauge" data-s="18"></span>משבים</button>
-        <button class="seg" data-overlay="waves" role="radio" aria-checked="false"><span data-ico="waves" data-s="18"></span>גלים</button>
-        <button class="seg" data-overlay="swell1" role="radio" aria-checked="false"><span data-ico="navigation" data-s="18"></span>סוול</button>
+        <button class="seg active" data-overlay="wind" role="radio" aria-checked="true"><span data-ico="wind" data-s="16"></span>רוח</button>
+        <button class="seg" data-overlay="gust" role="radio" aria-checked="false"><span data-ico="gauge" data-s="16"></span>משבים</button>
+        <button class="seg" data-overlay="waves" role="radio" aria-checked="false"><span data-ico="waves" data-s="16"></span>גלים</button>
+        <button class="seg" data-overlay="swell1" role="radio" aria-checked="false"><span data-ico="navigation" data-s="16"></span>סוול</button>
       </div>
-      <a class="btn" id="windy-open" href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener"><span data-ico="external-link" data-s="16"></span>פתח ב-Windy</a>
+      <a class="btn sm" id="windy-open" href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener" aria-label="פתח את השכבה הזו באתר Windy"><span data-ico="external-link" data-s="16"></span><span class="wo-t">פתח ב-Windy</span></a>
     </div>
     <details class="map-note">
       <summary><span data-ico="clock" data-s="16"></span>זמן המפה נבחר בנפרד</summary>
-      <p>המפה של Windy מציגה את התחזית לשעה הנוכחית, ולא מסונכרנת עם היום והשעה שבחרתם במסכים האחרים. אפשר לבחור זמן בסרגל שבתחתית המפה. לגלילת הדף – גוללים מחוץ למפה.</p>
+      <p>המפה של Windy מציגה את התחזית לשעה הנוכחית, ולא מסונכרנת עם היום והשעה שבחרתם במסכים האחרים. אפשר לבחור זמן בסרגל שבתחתית המפה. ב-Windy הסוול נקרא "גיבוע". לגלילת הדף – גוללים מחוץ למפה.</p>
     </details>
     <div class="windy-wrap" id="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe></div>
   </main>
@@ -168,10 +170,10 @@
   </footer>
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=5.0"></script>
-  <script src="core.js?v=5.0"></script>
-  <script src="data.js?v=5.0"></script>
-  <script src="app.js?v=5.0"></script>
+  <script src="icons.js?v=5.1"></script>
+  <script src="core.js?v=5.1"></script>
+  <script src="data.js?v=5.1"></script>
+  <script src="app.js?v=5.1"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

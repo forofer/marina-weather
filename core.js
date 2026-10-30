@@ -53,8 +53,11 @@ function heroStatus(date) {
   const isToday = date === nowLocal().slice(0, 10);
   if (rows.length < 2) return { late: true, rows };
   const dv = dayVerdict(rows);
-  const wins = dv.wins.slice(0, 2).sort((a, b) => a.start - b.start);
-  const winTxt = wins.map(w => `${hm(w.start)}–${hm(w.end + 1)}`).join(' , ');
+  // חלון = שעות מתאימות רצופות, כולל שעת החזרה. "06:00–08:00" אומר שגם ב-08:00 התנאים בתוך הספים –
+  // בדיוק כמו שהמתכנן בודק הפלגה 06:00–08:00. כך חלון שמוצע כמתאים תמיד עובר את בדיקת המתכנן.
+  const best = dv.wins[0] || null;                                   // החלון הארוך ביותר
+  const wins = dv.wins.slice().sort((a, b) => a.start - b.start);   // כל החלונות לפי שעה
+  const winTxt = wins.slice(0, 3).map(w => `${hm(w.start)}–${hm(w.end)}`).join(' , ');
   let lvl = dv.lvl, title = VERDICT[lvl].long, why = '', later = '';
   if (lvl === NODATA) {
     why = 'חסרים נתוני ' + [...new Set(rows.flatMap(r => verdict(r).missing))].join(' ו') + ' – נסו לרענן בעוד כמה דקות';
@@ -70,7 +73,7 @@ function heroStatus(date) {
     why = 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' · ');
     later = wins.length ? `שעות מתאימות בכל זאת: ${winTxt}` : 'אין שעות מתאימות ביום הזה';
   }
-  return { lvl, title, why, later, wins, rows, dv };
+  return { lvl, title, why, later, wins, best, rows, dv };
 }
 function dayLabel(dateStr, todayStr) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -240,19 +243,19 @@ function seaText(h) {
 }
 function comfortText(h, T) {
   if (h == null) return '';
-  if (h < 0.3) return 'כמעט בלי תנועה – נעים לכולם';
-  if (T != null && T < 5 && h >= 0.6) return 'גלים קצרים וצפופים – הסירה מטלטלת, עלול לגרום לבחילה';
-  if (h < 0.6) return 'תנועה קלה – נעים לכולם';
-  if (h < 1.0) return 'הסירה מתנדנדת – רוב האנשים מרגישים בסדר';
-  if (h < 1.5) return 'טלטולים – מי שרגיש לבחילה ירגיש לא טוב';
-  return 'טלטולים חזקים – לא מתאים לאורחים';
+  if (h < 0.3) return 'כמעט בלי תנועה';
+  if (T != null && T < 5 && h >= 0.6) return 'גלים קצרים וצפופים – תנועה חדה, עלול להיות לא נוח לרגישים לבחילה';
+  if (h < 0.6) return 'צפויה תנועה קלה';
+  if (h < 1.0) return 'הסירה מתנדנדת – לרוב נסבל';
+  if (h < 1.5) return 'טלטולים – עלול להיות לא נוח לרגישים לבחילה';
+  return 'טלטולים משמעותיים – לשקול התאמה לאורחים';
 }
 function sailAdvice(wind, gust) { // יאכטת מפרשים 12 מ'
   const w = wind ?? 0, g = gust ?? w;
   if (w >= 27 || g >= 34) return { t: 'לא לשייט פנאי – רוח חזקה מדי', lvl: 2 };
   if (w >= 21 || g >= 28) return { t: 'ריף שני + ג׳נואה מקוצרת · צוות מנוסה בלבד', lvl: 2 };
   if (w >= 16 || g >= 22) return { t: 'ריף ראשון במפרש הראשי, ג׳נואה חלקית', lvl: 1 };
-  if (w >= 9) return { t: 'מפרשים מלאים – תנאי הפלגה מצוינים', lvl: 0 };
+  if (w >= 9) return { t: 'מפרשים מלאים – רוח טובה להפלגה', lvl: 0 };
   if (w >= 5) return { t: 'רוח קלה – מפרשים מלאים, הפלגה איטית', lvl: 0 };
   return { t: 'כמעט אין רוח – בעיקר מנוע', lvl: 0 };
 }
@@ -260,17 +263,24 @@ function sailAdvice(wind, gust) { // יאכטת מפרשים 12 מ'
 function sailLine(wind, gust, lvl, waveMax) {
   const a = sailAdvice(wind, gust);
   if (a.lvl === 0 && (lvl > 0 || (waveMax ?? 0) > settings.maxWave)) {
-    const base = a.t.replace(' – תנאי הפלגה מצוינים', '');
+    const base = a.t.replace(' – רוח טובה להפלגה', '');
     return { t: (waveMax ?? 0) > settings.maxWave ? base + ' · הים גבוה – לא נוח' : base, lvl: Math.max(a.lvl, lvl > 0 ? 1 : 0) };
   }
   return a;
 }
+// הרוח ביחס לקו החוף בלבד – בלי הכללות על זווית ההפלגה (זו מחושבת לכל כיוון בנפרד ב-courseNotes)
 function coastNote(deg) {
   if (deg == null) return '';
-  let d = Math.abs(((deg - COAST_NORMAL) % 360 + 540) % 360 - 180);
-  if (d < 60) return 'רוח ים (מהים לחוף) – הגלים נבנים לכיוון החוף, כניסה למרינה עם רוח מאחור';
-  if (d > 120) return 'רוח יבשה – ים שקט ליד החוף אך משבית, מתחזקת בהתרחקות מהחוף';
-  return 'רוח לאורך החוף – הפלגה צפונה או דרומה תהיה בחצי רוח, מהירה ונוחה';
+  const d = Math.abs(((deg - COAST_NORMAL) % 360 + 540) % 360 - 180);
+  if (d < 60) return 'רוח מהים לכיוון החוף – הגלים מתקדמים לעבר החוף';
+  if (d > 120) return 'רוח מהיבשה – ליד החוף הים בדרך כלל שקט יותר, ובהתרחקות הרוח והגלים מתחזקים';
+  return 'רוח בערך לאורך קו החוף';
+}
+// זווית ההפלגה בפועל לכל כיוון נפוץ, לפי כיוון הרוח – אותו חישוב בכל ההסברים
+const HEADINGS = [{ t: 'צפונה (נתניה)', h: 15 }, { t: 'דרומה (ת"א / יפו)', h: 195 }, { t: 'מערבה – לים הפתוח', h: 285 }, { t: 'חזרה מזרחה – לכיוון החוף', h: 105 }];
+function courseNotes(deg) {
+  if (deg == null) return [];
+  return HEADINGS.map(x => ({ ...x, p: pointOfSail(deg, x.h) }));
 }
 // גשם בשעה r ובשלוש השעות שאחריה – בלי הבטחות מוחלטות
 function rainSoonText(r) {
@@ -328,12 +338,12 @@ const hm = h => `${pad2(h % 24)}:00`;
 
 function pointOfSail(windFrom, heading) {
   const a = Math.abs(((windFrom - heading) % 360 + 540) % 360 - 180);
-  if (a < 40) return { t: 'מול הרוח – צריך לחצות הלוך ושוב', c: 'var(--nogo-ink)' };
-  if (a < 60) return { t: 'צמוד לרוח – הטיה ותנועה מורגשת', c: 'var(--maybe-ink)' };
-  if (a < 80) return { t: 'רוח קרובה – הפלגה טובה', c: 'var(--go-ink)' };
-  if (a < 110) return { t: 'חצי רוח – מהיר ונוח', c: 'var(--go-ink)' };
-  if (a < 150) return { t: 'רוח גבית – נוח ויציב', c: 'var(--go-ink)' };
-  return { t: 'רוח מאחור – להיזהר מג׳ייב', c: 'var(--maybe-ink)' };
+  if (a < 40) return { t: 'מול הרוח – צריך לחצות הלוך ושוב', c: 'var(--nogo-ink)', a };
+  if (a < 60) return { t: 'צמוד לרוח – הטיה ותנועה מורגשת', c: 'var(--maybe-ink)', a };
+  if (a < 80) return { t: 'רוח קרובה', c: 'var(--go-ink)', a };
+  if (a < 110) return { t: 'חצי רוח', c: 'var(--go-ink)', a };
+  if (a < 150) return { t: 'רוח גבית', c: 'var(--go-ink)', a };
+  return { t: 'רוח מאחור – להיזהר מג׳ייב', c: 'var(--maybe-ink)', a };
 }
 
 function rowIndex() {
@@ -395,6 +405,8 @@ function sailPlanSegments(rows, lastIsEnd = false) {
   });
   return segs.map(sg => ({ ...sg, start: rows[sg.i0].hour, end: rows[sg.i1].hour, label: spanLabel(rows, sg.i0, sg.i1, lastIsEnd) }));
 }
+// הפלגה שמתאימה לחלון: יציאה בתחילתו, חזרה בשעה המתאימה האחרונה
+const windowPlan = (w, date = w.date) => ({ date, from: w.start, to: w.end });
 function findAlternatives(p) {
   const dur = p.to - p.from;
   const nowT = nowLocal();

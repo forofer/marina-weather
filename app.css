@@ -11,22 +11,23 @@
   --line: #dfe6ee;
   --line-2: #c9d4df;
   --ink: #102a43;
-  --ink-2: #4b6279;
-  --ink-3: #6b7f93;
+  --ink-2: #3f556b;
+  --ink-3: #566b80;
   --accent: #0b67b2;
   --accent-ink: #0a5a9c;
   --accent-soft: #e4f0fb;
   --on-accent: #ffffff;
-  --go: #1e9a52;      --go-soft: #e7f6ed;    --go-ink: #12693a;
-  --maybe: #df8a00;   --maybe-soft: #fdf3e1; --maybe-ink: #8a5000;
+  --go: #17854a;      --go-soft: #e7f6ed;    --go-ink: #12693a;
+  --maybe: #b86e00;   --maybe-soft: #fdf3e1; --maybe-ink: #8a5000;
   --nogo: #d63b3b;    --nogo-soft: #fdeaea;  --nogo-ink: #a32424;
   --none: #6b7f93;    --none-soft: #eef2f5;  --none-ink: #4b6279;
   --wind: #1d5fa8;
-  --gust: #8fb3d9;
+  --gust: #5f86b3;
   --wave: #2a9a96;
   --rain: #3b82c4;
-  --night: rgba(16, 42, 67, 0.05);
-  --thr: #df8a00;
+  --night: rgba(16, 42, 67, 0.07);
+  --night-key: rgba(16, 42, 67, 0.16);
+  --thr: #b36b00;
   --trip: #7c4dcc;
   --shadow: 0 1px 2px rgba(16, 42, 67, 0.05), 0 1px 3px rgba(16, 42, 67, 0.05);
   --r: 14px;
@@ -40,14 +41,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0e151d; --surface: #16202b; --surface-2: #1c2834; --line: #263545; --line-2: #34475a;
-    --ink: #e5edf5; --ink-2: #a9bacb; --ink-3: #8597aa;
+    --ink: #e5edf5; --ink-2: #b3c2d1; --ink-3: #93a5b8;
     --accent: #5aaef0; --accent-ink: #84c3f5; --accent-soft: #17324b; --on-accent: #06192b;
     --go: #3dc677; --go-soft: #13301f; --go-ink: #7fe0a6;
     --maybe: #f2a93b; --maybe-soft: #352812; --maybe-ink: #f6c97f;
     --nogo: #f06868; --nogo-soft: #3b1a1c; --nogo-ink: #ffa3a3;
     --none: #8597aa; --none-soft: #1f2a36; --none-ink: #a9bacb;
-    --wind: #6fb3f2; --gust: #44698f; --wave: #4fc7bf; --rain: #6aa8e6;
-    --night: rgba(0, 0, 0, 0.22); --thr: #f2a93b; --trip: #b18cf2;
+    --wind: #6fb3f2; --gust: #8fa6bf; --wave: #4fc7bf; --rain: #6aa8e6;
+    --night: rgba(0, 0, 0, 0.22); --night-key: rgba(0, 0, 0, 0.45); --thr: #f2a93b; --trip: #b18cf2;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     --err-bg: #3b1a1c; --err-fg: #ffa3a3;
     color-scheme: dark;
@@ -55,14 +56,14 @@
 }
 :root[data-theme="dark"] {
   --bg: #0e151d; --surface: #16202b; --surface-2: #1c2834; --line: #263545; --line-2: #34475a;
-  --ink: #e5edf5; --ink-2: #a9bacb; --ink-3: #8597aa;
+  --ink: #e5edf5; --ink-2: #b3c2d1; --ink-3: #93a5b8;
   --accent: #5aaef0; --accent-ink: #84c3f5; --accent-soft: #17324b; --on-accent: #06192b;
   --go: #3dc677; --go-soft: #13301f; --go-ink: #7fe0a6;
   --maybe: #f2a93b; --maybe-soft: #352812; --maybe-ink: #f6c97f;
   --nogo: #f06868; --nogo-soft: #3b1a1c; --nogo-ink: #ffa3a3;
   --none: #8597aa; --none-soft: #1f2a36; --none-ink: #a9bacb;
-  --wind: #6fb3f2; --gust: #44698f; --wave: #4fc7bf; --rain: #6aa8e6;
-  --night: rgba(0, 0, 0, 0.22); --thr: #f2a93b; --trip: #b18cf2;
+  --wind: #6fb3f2; --gust: #8fa6bf; --wave: #4fc7bf; --rain: #6aa8e6;
+  --night: rgba(0, 0, 0, 0.22); --night-key: rgba(0, 0, 0, 0.45); --thr: #f2a93b; --trip: #b18cf2;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --err-bg: #3b1a1c; --err-fg: #ffa3a3;
   color-scheme: dark;
@@ -189,24 +190,20 @@ bdi { unicode-bidi: isolate; }
 /* כרטיס החלטה – אותו רכיב בסיכום, בתכנון ובנתונים */
 .decision {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
-  padding: var(--pad); position: relative; overflow: hidden;
+  padding: 0.85rem var(--pad); position: relative; overflow: hidden;
 }
 .decision::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--st); }
 .dc-scope { font-size: 0.875rem; color: var(--ink-2); margin: 0.1rem 0 0.35rem; }
 .dc-head { display: flex; align-items: center; gap: 0.6rem; }
-.dc-ico { display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; border-radius: 50%; background: var(--st-soft); color: var(--st); flex: none; }
-.dc-title { margin: 0; font-size: 1.5rem; line-height: 1.25; font-weight: 700; color: var(--st-ink); }
-.dc-why { margin: 0.5rem 0 0; color: var(--ink); }
-.dc-window { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
-.dc-window .k { color: var(--ink-2); font-size: 0.875rem; }
-.dc-window .v { font-family: var(--num); font-weight: 600; font-size: 1.125rem; }
-.dc-window .s { color: var(--ink-2); font-size: 0.8125rem; }
+.dc-ico { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--st-soft); color: var(--st); flex: none; }
+.dc-title { margin: 0; font-size: 1.375rem; line-height: 1.25; font-weight: 700; color: var(--st-ink); }
+.dc-why { margin: 0.35rem 0 0; color: var(--ink); font-size: 0.9375rem; }
 .dc-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; align-items: center; }
 
 /* כרטיס מדד: אייקון ושם · מספר גדול · יחידה ומידע משלים */
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.25rem), 1fr)); gap: 0.5rem; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 .metric {
-  background: var(--surface-2); border-radius: var(--r-s); padding: 0.6rem 0.7rem 0.65rem;
+  background: var(--surface-2); border-radius: var(--r-s); padding: 0.6rem 0.4rem 0.65rem;
   display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0;
 }
 .m-label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.875rem; color: var(--ink-2); }
@@ -214,7 +211,7 @@ bdi { unicode-bidi: isolate; }
 .m-value { font-family: var(--num); font-weight: 600; font-size: 1.875rem; line-height: 1.15; margin: 0.15rem 0 0.1rem; font-variant-numeric: tabular-nums; }
 .m-value.rng { font-size: 1.5rem; line-height: 1.45; }
 .m-unit { font-size: 0.8125rem; color: var(--ink-2); display: inline-flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; justify-content: center; }
-.m-dir { font-size: 0.8125rem; color: var(--ink); display: inline-flex; align-items: center; gap: 0.25rem; }
+.m-dir { font-size: 0.8125rem; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; flex-wrap: wrap; }
 .m-sub { font-size: 0.8125rem; color: var(--ink-2); margin-top: 0.1rem; }
 .metric.over { background: var(--st-soft); }
 .metric.over .m-value { color: var(--st-ink); }
@@ -222,7 +219,7 @@ bdi { unicode-bidi: isolate; }
 .darrow { display: inline-block; width: 0.95rem; height: 0.95rem; flex: none; }
 
 /* בורר ימים */
-.days { display: flex; align-items: center; gap: 0.25rem; margin: 0 0 var(--gap); }
+.days { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; margin: 0 0 var(--gap); }
 .day-arrow { flex: none; width: 2.25rem; min-height: 2.75rem; border: 0; background: transparent; color: var(--ink-2); font-size: 1.5rem; cursor: pointer; border-radius: var(--r-s); }
 .day-arrow:disabled { opacity: 0.3; cursor: default; }
 .day-tabs { display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none; flex: 1; padding: 2px; }
@@ -299,7 +296,7 @@ bdi { unicode-bidi: isolate; }
 .wk-meta > span { min-width: 0; overflow-wrap: anywhere; }
 .wk-day small { font-weight: 400; color: var(--ink-2); font-size: 0.8125rem; margin-inline-start: 0.35rem; }
 .wk-st { justify-self: end; color: var(--st-ink); font-weight: 600; font-size: 0.875rem; text-align: end; }
-.wk-meta { grid-column: 2 / -1; min-width: 0; display: flex; flex-wrap: wrap; gap: 0.1rem 0.9rem; font-size: 0.8125rem; color: var(--ink-2); }
+.wk-meta { grid-column: 2 / -1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.15rem 0.75rem; font-size: 0.8125rem; color: var(--ink-2); }
 .wk-meta b { font-family: var(--num); font-weight: 600; color: var(--ink); }
 .week { overflow-x: auto; }
 .wk { border-collapse: separate; border-spacing: 2px; direction: ltr; font-family: var(--num); font-size: 0.8125rem; }
@@ -340,7 +337,6 @@ select, input[type="number"] {
 .dr tr:last-child > * { border-bottom: 0; }
 .up { color: var(--maybe-ink); }
 .down { color: var(--go-ink); }
-.legs { display: grid; gap: 0.25rem; margin-top: 0.75rem; font-size: 0.9375rem; }
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
 .checklist li { display: flex; gap: 0.6rem; align-items: flex-start; }
 .checklist .ico { color: var(--accent); margin-top: 0.15rem; }
@@ -398,12 +394,12 @@ table.fc { border-collapse: separate; border-spacing: 0; direction: ltr; font-si
 .fc tbody tr:last-child > * { border-bottom: 0; }
 
 /* ===== מסך מפה ===== */
-.map-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
-.seg-group { display: inline-flex; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
-.seg { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; padding: 0.3rem 0.8rem; border: 0; border-radius: 9px; background: transparent; color: var(--ink-2); cursor: pointer; font-size: 0.9375rem; font-weight: 500; }
+.map-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; }
+.seg-group { display: inline-flex; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg { display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center; gap: 0.35rem; min-height: 2.5rem; padding: 0.3rem 0.55rem; border: 0; border-radius: 9px; background: transparent; color: var(--ink-2); cursor: pointer; font-size: 0.9375rem; font-weight: 500; }
 .seg.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
-.map-note { font-size: 0.875rem; color: var(--ink-2); margin-bottom: 0.5rem; }
-.map-note summary { cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; color: var(--ink-2); }
+.map-note { font-size: 0.875rem; color: var(--ink-2); margin-bottom: 0.35rem; }
+.map-note summary { cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; color: var(--ink-2); }
 .map-note summary::after { content: '· הסבר'; color: var(--accent-ink); }
 .map-note[open] summary::after { content: ''; }
 .map-note p { margin: 0 0 0.25rem; }
@@ -461,15 +457,18 @@ body.modal-open { overflow: hidden; }
   .tab .ti { width: auto; height: auto; background: none !important; }
   .tab:hover { background: var(--surface); }
   .tab.active { background: var(--accent-soft); }
-  .brief-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
+  .brief-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); grid-template-areas: "dec hour" "win hour"; align-items: start; }
+  #decision { grid-area: dec; }
+  #hour-card { grid-area: hour; }
+  #window-card { grid-area: win; }
   .hc-art { height: 5.5rem; }
   .p-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   .p-grid > .wide { grid-column: 1 / -1; }
   .plan-form { grid-template-columns: 1.2fr 1.6fr 1.2fr; align-items: end; }
   .windy-wrap { height: 36rem; }
-  .wk-item { grid-template-columns: auto minmax(10rem, 14rem) 1fr auto; }
+  .wk-item { grid-template-columns: auto minmax(9rem, 12rem) minmax(0, 1fr) auto; }
   .wk-ico { grid-row: auto; }
-  .wk-meta { grid-column: auto; grid-row: 1; grid-column-start: 3; }
+  .wk-meta { grid-column: 3; grid-row: 1; grid-template-columns: 9rem 8rem 8rem 8rem; }
   .wk-st { grid-column: 4; grid-row: 1; }
 }
 @media (max-width: 56.24em) {
@@ -499,4 +498,72 @@ body.modal-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
   .sc-wave, .sc-boat, .sc-wind line { animation: none; }
+}
+
+/* ===== גרסה 5.1 ===== */
+/* תוויות בחירה */
+.pick-l { font-size: 0.8125rem; color: var(--ink-2); font-weight: 500; }
+.days > .pick-l { flex: 1 1 100%; margin: 0 0.25rem -0.1rem; }
+.pick-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.75rem; min-height: 2.25rem; flex-wrap: wrap; }
+.pick-head + .hours { margin-top: 0.25rem; }
+.btn.sm { min-height: 2.25rem; padding: 0.25rem 0.65rem; font-size: 0.875rem; }
+.linkish { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.hc-now { color: var(--ink-2); font-weight: 500; font-size: 0.9375rem; }
+.hr.past { color: var(--ink-2); }
+/* שקיעה בסרגל השעות */
+.ss-mark { flex: 0 0 auto; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; padding: 0 0.15rem; color: var(--maybe-ink); font-family: var(--num); font-size: 0.75rem; font-weight: 600; border-inline: 2px dotted var(--thr); border-radius: 4px; }
+/* כרטיס החלטה קומפקטי */
+.dc-basis { color: var(--ink-2); font-size: 0.875rem; }
+.dc-more { margin-top: 0.25rem; }
+.dc-more > summary { min-height: 2.5rem; font-size: 0.875rem; }
+.dc-more .note { margin-top: 0; }
+.decision .alert { margin-top: 0.5rem; padding-block: 0.45rem; }
+/* החלון המתאים */
+.wins { display: flex; flex-direction: column; gap: 0.5rem; }
+.win { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; padding: 0.6rem 0.75rem; border-radius: var(--r-s); background: var(--surface-2); }
+.win.best { background: var(--go-soft); }
+.win-t { display: flex; flex-direction: column; min-width: 0; }
+.win-t .v { font-family: var(--num); font-weight: 600; font-size: 1.125rem; }
+.win-t .s { font-size: 0.8125rem; color: var(--ink-2); }
+.window-card .hint { margin: 0.5rem 0 0; }
+.sec-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.25rem 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.sec-row .sec-h { margin: 0; }
+.sec-row .hint { margin: 0; }
+/* השבוע: שדות קבועים ומיושרים */
+.wk-meta .f small { color: var(--ink-2); font-size: 0.8125rem; }
+/* תכנון */
+.trip-line { display: flex; flex-wrap: wrap; gap: 0.15rem 1rem; align-items: center; font-size: 0.9375rem; color: var(--ink-2); }
+.trip-line > span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.trip-line b { color: var(--ink); font-weight: 600; }
+.trip-line .ico { color: var(--ink-3); }
+.dur { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: var(--gap); }
+.chip { min-height: 2.5rem; padding: 0.25rem 0.85rem; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 0.875rem; font-weight: 500; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.p-top { display: grid; gap: var(--gap); margin-bottom: var(--gap); }
+.legs { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9375rem; }
+.legs-h { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--ink-2); }
+.legs-h + .legs { margin-top: 0.25rem; }
+/* מפה: פחות שטח מעל המפה בטלפון */
+@media (max-width: 30em) {
+  .map-bar .wo-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .map-bar .btn.sm { min-width: 2.75rem; min-height: 2.75rem; padding: 0; }
+  .map-bar .seg { min-height: 2.75rem; font-size: 0.875rem; gap: 0.2rem; }
+}
+/* מחשב: החלטה והחלון מימין, השעה הנבחרת משמאל; בתכנון – החלטה ומדדים באותה שורה */
+@media (min-width: 56.25em) {
+  .p-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+}
+/* טקסט מוגדל או מסך צר מאוד: מדדים אחד מתחת לשני, בלי להקטין כתב */
+@media (max-width: 20em) {
+  .metrics { grid-template-columns: minmax(0, 1fr); }
+  .wk-meta { grid-template-columns: minmax(0, 1fr); }
+  .ss-mark { font-size: 0.6875rem; }
+  /* יציאה וחזרה: בלוקים במקום טבלה של שלוש עמודות */
+  .dr thead { display: none; }
+  .dr, .dr tbody { display: block; }
+  .dr tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-bottom: 1px solid var(--line); padding: 0.35rem 0; }
+  .dr tr:last-child { border-bottom: 0; }
+  .dr th, .dr td { border: 0; padding: 0.15rem 0.25rem; text-align: start; overflow-wrap: anywhere; }
+  .dr tbody th { grid-column: 1 / -1; white-space: normal; }
+  .dr td::before { content: attr(data-l); display: block; font-size: 0.75rem; color: var(--ink-2); }
 }
