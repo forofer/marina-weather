@@ -328,12 +328,12 @@ const hm = h => `${pad2(h % 24)}:00`;
 
 function pointOfSail(windFrom, heading) {
   const a = Math.abs(((windFrom - heading) % 360 + 540) % 360 - 180);
-  if (a < 40) return { t: 'מול הרוח – צריך לחצות הלוך ושוב', c: 'var(--nogo)' };
-  if (a < 60) return { t: 'צמוד לרוח – הטיה ותנועה מורגשת', c: 'var(--gust)' };
-  if (a < 80) return { t: 'רוח קרובה – הפלגה טובה', c: 'var(--go)' };
-  if (a < 110) return { t: 'חצי רוח – מהיר ונוח', c: 'var(--go)' };
-  if (a < 150) return { t: 'רוח גבית – נוח ויציב', c: 'var(--go)' };
-  return { t: 'רוח מאחור – להיזהר מג׳ייב', c: 'var(--warn)' };
+  if (a < 40) return { t: 'מול הרוח – צריך לחצות הלוך ושוב', c: 'var(--nogo-ink)' };
+  if (a < 60) return { t: 'צמוד לרוח – הטיה ותנועה מורגשת', c: 'var(--maybe-ink)' };
+  if (a < 80) return { t: 'רוח קרובה – הפלגה טובה', c: 'var(--go-ink)' };
+  if (a < 110) return { t: 'חצי רוח – מהיר ונוח', c: 'var(--go-ink)' };
+  if (a < 150) return { t: 'רוח גבית – נוח ויציב', c: 'var(--go-ink)' };
+  return { t: 'רוח מאחור – להיזהר מג׳ייב', c: 'var(--maybe-ink)' };
 }
 
 function rowIndex() {
@@ -371,23 +371,29 @@ function modelConfidence(rows) {
   const avg = per.reduce((a, b) => a + b.spread, 0) / per.length;
   const label = `הסכמה בין ${n} מודלי רוח`;
   const d = `פער ממוצע ${fmt(avg, 0)} קשר, פער מרבי ${fmt(worst.spread, 0)} קשר ב-${hm(worst.hour)}`;
-  if (avg < 4 && worst.spread < 7) return { t: 'גבוהה', c: 'var(--go)', label, d };
-  if (avg < 7 && worst.spread < 11) return { t: 'בינונית', c: 'var(--warn)', label, d: d + ' – כדאי לבדוק שוב לפני היציאה' };
-  return { t: 'נמוכה', c: 'var(--nogo)', label, d: d + ' – התחזית לא ודאית' };
+  if (avg < 4 && worst.spread < 7) return { t: 'גבוהה', c: 'var(--go-ink)', label, d };
+  if (avg < 7 && worst.spread < 11) return { t: 'בינונית', c: 'var(--maybe-ink)', label, d: d + ' – כדאי לבדוק שוב לפני היציאה' };
+  return { t: 'נמוכה', c: 'var(--nogo-ink)', label, d: d + ' – התחזית לא ודאית' };
 }
-function reasonsByHour(rows) {
+// טווח שעות להצגה. בהפלגה (lastIsEnd) השורה האחרונה היא רגע החזרה – הטווח לא נמשך אחריה
+function spanLabel(rows, i0, i1, lastIsEnd) {
+  const a = rows[i0].hour, endsAtReturn = lastIsEnd && i1 === rows.length - 1;
+  if (endsAtReturn && i0 === i1) return `ב-${hm(a)}`;
+  return `${hm(a)}–${hm(endsAtReturn ? rows[i1].hour : rows[i1].hour + 1)}`;
+}
+function reasonsByHour(rows, lastIsEnd = false) {
   const map = new Map();
-  rows.forEach(r => verdict(r).reasons.forEach(why => { if (!map.has(why)) map.set(why, []); map.get(why).push(r.hour); }));
-  return [...map.entries()].map(([why, hs]) => `${why} (<bdi dir="ltr">${hm(Math.min(...hs))}–${hm(Math.max(...hs) + 1)}</bdi>)`);
+  rows.forEach((r, i) => verdict(r).reasons.forEach(why => { if (!map.has(why)) map.set(why, []); map.get(why).push(i); }));
+  return [...map.entries()].map(([why, ix]) => `${why} (<bdi dir="ltr">${spanLabel(rows, Math.min(...ix), Math.max(...ix), lastIsEnd)}</bdi>)`);
 }
-function sailPlanSegments(rows) {
+function sailPlanSegments(rows, lastIsEnd = false) {
   const segs = [];
-  rows.forEach(r => {
+  rows.forEach((r, i) => {
     const a = sailAdvice(r.wind, r.gust);
     const last = segs[segs.length - 1];
-    if (last && last.t === a.t) last.end = r.hour; else segs.push({ t: a.t, lvl: a.lvl, start: r.hour, end: r.hour });
+    if (last && last.t === a.t) last.i1 = i; else segs.push({ t: a.t, lvl: a.lvl, i0: i, i1: i });
   });
-  return segs;
+  return segs.map(sg => ({ ...sg, start: rows[sg.i0].hour, end: rows[sg.i1].hour, label: spanLabel(rows, sg.i0, sg.i1, lastIsEnd) }));
 }
 function findAlternatives(p) {
   const dur = p.to - p.from;

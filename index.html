@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ים הרצליה – תחזית לסקיפר</title>
   <meta name="description" content="תחזית רוח, משבים, גלים וגשם למרינה הרצליה – האם מתאים להפליג היום, ומה תפגוש בים.">
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1a2028" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f6f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e151d" media="(prefers-color-scheme: dark)">
   <script>try{var th=localStorage.getItem("theme");if(th)document.documentElement.setAttribute("data-theme",th);}catch(e){}</script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
@@ -15,91 +15,110 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="ים הרצליה">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Rubik:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=4.3">
+  <link rel="stylesheet" href="app.css?v=5.0">
 </head>
-<body class="web">
+<body>
 <div class="app">
   <header class="top">
-    <div class="title">
-      <strong><span data-ico="anchor" class="brand-ico"></span>ים הרצליה</strong>
-      <span id="updated" class="muted"></span>
+    <div class="brand">
+      <span class="brand-name"><span data-ico="anchor" data-s="20" class="brand-ico"></span>ים הרצליה</span>
+      <span id="updated" class="updated"></span>
     </div>
+    <nav class="view-tabs" id="view-tabs" aria-label="מסכים">
+      <button id="view-brief" class="tab active" aria-current="page"><span class="ti" data-ico="compass" data-s="22"></span><span class="tl">סיכום</span></button>
+      <button id="view-plan" class="tab"><span class="ti" data-ico="sailboat" data-s="22"></span><span class="tl">תכנון</span></button>
+      <button id="view-table" class="tab"><span class="ti" data-ico="chart-column" data-s="22"></span><span class="tl">נתונים</span></button>
+      <button id="view-windy" class="tab"><span class="ti" data-ico="map" data-s="22"></span><span class="tl">מפה</span></button>
+    </nav>
     <div class="top-actions">
-      <button id="info-btn" class="icon-btn ghost" title="מה זה האתר הזה?" aria-label="הסבר על האתר"><span data-ico="info"></span></button>
-      <button id="theme-btn" class="icon-btn ghost" title="מצב בהיר / כהה" aria-label="מצב בהיר או כהה"><span data-ico="sun-moon"></span></button>
-      <button id="settings-btn" class="icon-btn ghost" title="הגדרות" aria-label="הגדרות"><span data-ico="settings"></span></button>
-      <button id="refresh-btn" class="icon-btn ghost" title="רענן תחזית" aria-label="רענן תחזית"><span data-ico="refresh-cw"></span></button>
+      <button id="info-btn" class="icon-btn" title="מה זה האתר הזה?" aria-label="הסבר על האתר"><span data-ico="info"></span></button>
+      <button id="theme-btn" class="icon-btn" title="מצב בהיר / כהה" aria-label="מצב בהיר או כהה"><span data-ico="sun-moon"></span></button>
+      <button id="settings-btn" class="icon-btn" title="הגדרות" aria-label="הגדרות"><span data-ico="settings"></span></button>
+      <button id="refresh-btn" class="icon-btn" title="רענן תחזית" aria-label="רענן תחזית"><span data-ico="refresh-cw"></span></button>
     </div>
   </header>
-  <nav class="view-tabs" id="view-tabs" aria-label="תצוגות">
-    <button id="view-brief" class="seg active" title="תמונת מצב לסקיפר"><span class="ti" data-ico="compass" data-s="22"></span><span class="tl">סיכום</span></button>
-    <button id="view-plan" class="seg" title="תכנון הפלגה"><span class="ti" data-ico="sailboat" data-s="22"></span><span class="tl">הפלגה</span></button>
-    <button id="view-table" class="seg" title="כל הנתונים, שעה אחרי שעה"><span class="ti" data-ico="chart-column" data-s="22"></span><span class="tl">פירוט</span></button>
-    <button id="view-windy" class="seg" title="מפת Windy"><span class="ti" data-ico="map" data-s="22"></span><span class="tl">מפה</span></button>
-  </nav>
 
-  <div class="intro hidden" id="intro-box"><div id="intro"></div><button id="intro-close" class="icon-btn ghost" aria-label="סגור הסבר"><span data-ico="x" data-s="18"></span></button></div>
-  <div id="banner" class="banner hidden"></div>
+  <div class="intro hidden" id="intro-box"><div id="intro"></div><button id="intro-close" class="icon-btn" aria-label="סגור הסבר"><span data-ico="x" data-s="18"></span></button></div>
+  <div id="banner" class="banner hidden" role="status"></div>
 
-  <nav class="days" id="days-nav">
-    <button id="prev-day" class="nav-arrow" title="יום קודם">▶</button>
+  <nav class="days" id="days-nav" aria-label="בחירת יום">
+    <button id="prev-day" class="day-arrow" aria-label="יום קודם">‹</button>
     <div id="day-tabs" class="day-tabs"></div>
-    <button id="next-day" class="nav-arrow" title="יום הבא">◀</button>
+    <button id="next-day" class="day-arrow" aria-label="יום הבא">›</button>
   </nav>
   <div id="loading" class="loading">טוען תחזית…</div>
 
-  <!-- סיכום סקיפר -->
-  <main id="brief-view">
-    <section id="hero" class="hero"></section>
-    <h2 class="sec-h">שעה אחרי שעה</h2>
-    <div id="timeline" class="timeline"></div>
-    <p class="arrow-note">החצים מראים לאן הרוח נושבת. הקו המקווקו הוא הסף שלך.</p>
-    <h2 class="sec-h">השבוע במבט אחד</h2>
-    <p class="arrow-note">בכל משבצת: חץ = לאן הרוח נושבת, מספר = רוח בקשרים, ⚠/✕ = בזהירות/לא מומלץ, ☾ = אחרי השקיעה. לחיצה על שורה פותחת את היום.</p>
-    <div id="week" class="week"></div>
+  <!-- סיכום -->
+  <main id="brief-view" class="view">
+    <div class="brief-grid">
+      <section id="decision" aria-live="polite"></section>
+      <section id="hour-card" class="card hour-card" aria-labelledby="hc-title"></section>
+    </div>
+    <section class="card trend-card" aria-labelledby="trend-title">
+      <h2 class="sec-h" id="trend-title">לאורך היום</h2>
+      <div id="trend"></div>
+    </section>
+    <section class="week-sec" aria-labelledby="week-title">
+      <h2 class="sec-h" id="week-title">השבוע</h2>
+      <div id="week-list" class="week-list"></div>
+      <details id="week-more" class="more">
+        <summary>תצוגה מפורטת לפי שעה</summary>
+        <p class="hint">בכל משבצת: חץ – לאן הרוח נושבת, מספר – רוח בקשרים. הצבע – מצב השעה.</p>
+        <div id="week" class="week"></div>
+      </details>
+    </section>
   </main>
 
   <!-- תכנון הפלגה -->
-  <main id="plan-view" class="hidden">
-    <section class="plan-form">
-      <label>יום<select id="p-date"></select></label>
-      <label>שעת יציאה<select id="p-from"></select></label>
-      <label>שעת חזרה<select id="p-to"></select></label>
-      <label>לאן מפליגים<select id="p-course"></select></label>
-      <button id="p-save" class="primary">שמור הפלגה</button>
+  <main id="plan-view" class="view hidden">
+    <section class="card plan-form" aria-label="פרטי ההפלגה">
+      <label class="f-day">יום<select id="p-date"></select></label>
+      <div class="f-times">
+        <label>יציאה<select id="p-from"></select></label>
+        <label>חזרה<select id="p-to"></select></label>
+      </div>
+      <label class="f-course">לאן מפליגים<select id="p-course"></select></label>
     </section>
-    <div id="p-saved" class="saved"></div>
     <div id="p-result"></div>
+    <section class="p-saved-sec" aria-labelledby="saved-title">
+      <h2 class="sec-h" id="saved-title">הפלגות שמורות</h2>
+      <div id="p-saved" class="saved"></div>
+    </section>
   </main>
 
-  <!-- טבלה -->
-  <main id="table-view" class="hidden">
-    <section id="summary" class="summary"></section>
-    <div id="chart" class="chart"></div>
-    <div id="table-wrap" class="table-wrap"></div>
+  <!-- נתונים -->
+  <main id="table-view" class="view hidden">
+    <section id="summary" class="sumrow"></section>
+    <p class="swipe-hint"><span>שעה אחרי שעה · לחיצה על שעה בוחרת אותה</span><span class="swipe">החליקו לעוד שעות →</span></p>
+    <div id="table-wrap" class="table-wrap" tabindex="0" aria-label="טבלת נתונים שעתית"></div>
   </main>
 
-  <!-- מפת Windy -->
-  <main id="windy-view" class="hidden">
-    <div class="windy-bar">
-      <button class="seg active" data-overlay="wind">💨 רוח</button>
-      <button class="seg" data-overlay="gust">משבים</button>
-      <button class="seg" data-overlay="waves">🌊 גלים</button>
-      <button class="seg" data-overlay="swell1">〰️ סוֹול</button>
+  <!-- מפה -->
+  <main id="windy-view" class="view hidden">
+    <div class="map-bar">
+      <div class="seg-group" role="radiogroup" aria-label="שכבת מפה">
+        <button class="seg active" data-overlay="wind" role="radio" aria-checked="true"><span data-ico="wind" data-s="18"></span>רוח</button>
+        <button class="seg" data-overlay="gust" role="radio" aria-checked="false"><span data-ico="gauge" data-s="18"></span>משבים</button>
+        <button class="seg" data-overlay="waves" role="radio" aria-checked="false"><span data-ico="waves" data-s="18"></span>גלים</button>
+        <button class="seg" data-overlay="swell1" role="radio" aria-checked="false"><span data-ico="navigation" data-s="18"></span>סוול</button>
+      </div>
+      <a class="btn" id="windy-open" href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener"><span data-ico="external-link" data-s="16"></span>פתח ב-Windy</a>
     </div>
-    <p class="arrow-note">המפה של Windy מציגה את התחזית לעכשיו ולא מסונכרנת עם היום שבחרת – אפשר לבחור בה זמן בעצמכם. <a href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener">פתיחה ב-Windy ↗</a></p>
-    <div class="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe></div>
-    <p class="arrow-note">לגלילת הדף – גלול מחוץ למפה.</p>
+    <details class="map-note">
+      <summary><span data-ico="clock" data-s="16"></span>זמן המפה נבחר בנפרד</summary>
+      <p>המפה של Windy מציגה את התחזית לשעה הנוכחית, ולא מסונכרנת עם היום והשעה שבחרתם במסכים האחרים. אפשר לבחור זמן בסרגל שבתחתית המפה. לגלילת הדף – גוללים מחוץ למפה.</p>
+    </details>
+    <div class="windy-wrap" id="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe></div>
   </main>
 
   <!-- הגדרות -->
   <section id="settings" class="settings hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-    <div class="sheet-head"><h2 id="settings-title">הגדרות</h2><button id="settings-close" class="icon-btn" aria-label="סגור הגדרות">✕</button></div>
+    <div class="sheet-head"><h2 id="settings-title">הגדרות</h2><button id="settings-close" class="icon-btn" aria-label="סגור הגדרות"><span data-ico="x" data-s="20"></span></button></div>
     <h3>מתי מתאים להפליג?</h3>
     <div class="grid">
       <label>רוח עד (קשר)<input type="number" id="s-maxWind" step="1" min="1" inputmode="numeric"></label>
@@ -109,13 +128,13 @@
     </div>
     <h3>תצוגה</h3>
     <div class="grid">
-      <label>משעה<input type="number" id="s-hourFrom" min="0" max="23"></label>
-      <label>עד שעה<input type="number" id="s-hourTo" min="0" max="23"></label>
-      <label>מרווח
+      <label>משעה<input type="number" id="s-hourFrom" min="0" max="23" inputmode="numeric"></label>
+      <label>עד שעה<input type="number" id="s-hourTo" min="0" max="23" inputmode="numeric"></label>
+      <label>מרווח בטבלה
         <select id="s-step"><option value="1">כל שעה</option><option value="2">כל שעתיים</option><option value="3">כל 3 שעות</option></select>
       </label>
       <label class="check"><input type="checkbox" id="s-night"> לכלול גם שעות אחרי השקיעה בהמלצה</label>
-      <label class="check"><input type="checkbox" id="s-showModels"> השוואת מודלים בטבלה <bdi dir="ltr">(ECMWF / ICON / GFS)</bdi></label>
+      <label class="check"><input type="checkbox" id="s-showModels"> אפשרות להשוואת מודלים במסך הנתונים</label>
     </div>
     <details class="adv" id="adv-points"><summary>מתקדם: מאיפה נלקחת התחזית (מפה)</summary>
     <details class="adv"><summary>קואורדינטות מדויקות</summary>
@@ -127,33 +146,32 @@
     </div>
     </details>
     <div class="map-tools">
-      <span class="muted small">לחיצה על המפה מזיזה את:</span>
-      <label class="radio"><input type="radio" name="pick" value="wind" checked> 💨 נקודת רוח</label>
-      <label class="radio"><input type="radio" name="pick" value="wave"> 🌊 נקודת גלים</label>
-      <span class="muted small">(או גרור את הסמנים)</span>
+      <span class="muted">לחיצה על המפה מזיזה את:</span>
+      <label class="radio"><input type="radio" name="pick" value="wind" checked> נקודת הרוח</label>
+      <label class="radio"><input type="radio" name="pick" value="wave"> נקודת הגלים</label>
+      <span class="muted">(או גררו את הסמנים)</span>
     </div>
     <div id="pt-map" class="pt-map"></div>
     <div id="pt-info" class="pt-info"></div>
-    <p class="muted small">החזאי מחשב את התחזית לפי משבצת רשת (תא מודל). העיגול המקווקו הוא מרכז התא שהמודל באמת השתמש בו. כדי שהתחזית תייצג את הים, גם הנקודה וגם התא צריכים להיות בים, קרוב לאזור שבו אתה מפליג בדרך כלל.</p>
+    <p class="muted">החזאי מחשב את התחזית לפי משבצת רשת (תא מודל). העיגול המקווקו הוא מרכז התא שהמודל באמת השתמש בו. כדי שהתחזית תייצג את הים, גם הנקודה וגם התא צריכים להיות בים, קרוב לאזור שבו מפליגים בדרך כלל.</p>
     </details>
     <div id="settings-errors" class="settings-errors hidden" role="alert" tabindex="-1"></div>
     <div class="settings-actions">
-      <button id="settings-reset">ברירת מחדל</button>
-      <button id="settings-save" class="primary">שמור</button>
+      <button id="settings-reset" class="btn">ברירת מחדל</button>
+      <button id="settings-save" class="btn primary">שמור</button>
     </div>
   </section>
 
   <footer class="foot">
-    <span><a class="fl" href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים של השירות המטאורולוגי</a> · <a class="fl" id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a></span>
-    <span class="attribution">נתונים: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · ECMWF · DWD · NOAA · אייקונים: Lucide</span>
+    <span><a href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים של השירות המטאורולוגי</a> · <a id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a></span>
+    <span>נתונים: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · ECMWF · DWD · NOAA · אייקונים: Lucide</span>
   </footer>
-
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=4.3"></script>
-  <script src="core.js?v=4.3"></script>
-  <script src="data.js?v=4.3"></script>
-  <script src="app.js?v=4.3"></script>
+  <script src="icons.js?v=5.0"></script>
+  <script src="core.js?v=5.0"></script>
+  <script src="data.js?v=5.0"></script>
+  <script src="app.js?v=5.0"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

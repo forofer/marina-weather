@@ -111,5 +111,26 @@ test('אימות הגדרות דוחה ערכים לא תקינים', () => {
   ok(s.errors.length >= 3, JSON.stringify(s.errors));
 });
 
+console.log('טווחי שעות בהפלגה');
+test('הפלגה 09:00–14:00: הסיבות והמלצת המפרשים לא נמשכות אל 15:00', () => {
+  run(`settings = { ...DEFAULTS }`);
+  // שעות 9..14 (שעת החזרה כלולה כנקודה), עם חריגת גלים בסוף ההפלגה
+  const rows = run(`[9,10,11,12,13,14].map(h => ({ t: '2026-10-30T' + String(h).padStart(2,'0') + ':00', date: '2026-10-30', hour: h, wind: 12, gust: 16, wave: h >= 13 ? 1.6 : 0.8, wavePer: 6 }))`);
+  ctx.__p = rows;
+  const reasons = run(`reasonsByHour(__p, true)`).join(' ');
+  const segs = run(`sailPlanSegments(__p, true)`).map(x => x.label).join(' ');
+  ok(!/15:00/.test(reasons) && /13:00–14:00/.test(reasons), reasons);
+  ok(!/15:00/.test(segs) && /09:00–14:00/.test(segs), segs);
+});
+test('חריגה רק בשעת החזרה מוצגת כ"ב-14:00"', () => {
+  ctx.__p = run(`[9,10,11,12,13,14].map(h => ({ t: '2026-10-30T' + String(h).padStart(2,'0') + ':00', date: '2026-10-30', hour: h, wind: 12, gust: 16, wave: h === 14 ? 1.6 : 0.8, wavePer: 6 }))`);
+  const r = run(`reasonsByHour(__p, true)`).join(' ');
+  ok(/ב-14:00/.test(r), r);
+});
+test('בלי הדגל, טווח רגיל ממשיך עד סוף השעה', () => {
+  const r = run(`reasonsByHour(__p)`).join(' ');
+  ok(/14:00–15:00/.test(r), r);
+});
+
 console.log(`\n${pass} עברו, ${fail} נכשלו`);
 process.exit(fail ? 1 : 0);
