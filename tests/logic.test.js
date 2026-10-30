@@ -12,7 +12,7 @@ const ctx = {
 };
 ctx.window = ctx;
 vm.createContext(ctx);
-for (const f of ['core.js']) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
+for (const f of ['core.js', 'data.js']) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 const run = code => vm.runInContext(code, ctx);
 
 let pass = 0, fail = 0;
@@ -184,6 +184,114 @@ test('אין הכללה על חצי רוח לאורך החוף, וזווית ה�
 test('ניסוחי נוחות מרוככים', () => {
   const all = [0.1, 0.4, 0.8, 1.2, 2].map(h => run(`comfortText(${h}, 7)`)).join(' | ');
   ok(!/נעים לכולם|ירגיש לא טוב|לא מתאים לאורחים/.test(all), all);
+});
+
+console.log('גשם – מודל משותף');
+// יום יבש בסיסי (בלי הסתברויות – כמו נתוני Open-Meteo בלי אנסמבל) ושינויים לפי שעה
+function rainDay(over = {}, date = '2026-11-02') {
+  return day(date, over).map(r => { delete r.pop; return r; });
+}
+const RS = (expr) => run(expr);
+test('יבש: אין הודעה (status=dry, טקסט ריק)', () => {
+  setData(rainDay({ 10: { popOM: 5 }, 11: { popOM: 10 } }));
+  const r = RS(`rainNext('2026-11-02', 9)`);
+  eq(r.status, 'dry'); eq(r.text, '');
+});
+test('נתונים חסרים אינם "יבש": status=missing', () => {
+  const o = {}; for (let h = 0; h < 24; h++) o[h] = { rain: null, code: null };
+  setData(rainDay(o));
+  eq(RS(`rainNext('2026-11-02', 9).status`), 'missing');
+});
+test('חלק מהשעות חסרות: הערה שקטה, לא נבלע ביבש', () => {
+  setData(rainDay({ 11: { rain: null, code: null } }));
+  const r = RS(`rainNext('2026-11-02', 9)`);
+  eq(r.status, 'dry'); ok(/חסרים נתוני גשם לשעה אחת/.test(r.note), r.note);
+});
+test('גשם רציף: אירוע אחד, הטווח לפי "שעה שקדמה" (שורות 16–18 → 15:00–18:00)', () => {
+  setData(rainDay({ 16: { rain: 1.2 }, 17: { rain: 3.0 }, 18: { rain: 0.8 } }));
+  const r = RS(`rainSummary(intervalRows('2026-11-02', 12, 20))`);
+  eq(r.events.length, 1); eq([r.events[0].start, r.events[0].end], [15, 18]);
+  ok(/גשם קל עד בינוני צפוי בין 15:00 ל-18:00/.test(r.text), r.text);
+  ok(/כמות מצטברת 5.0 מ"מ/.test(r.details[0]) && /16:00–17:00\u2069? 3.0|17:00.{0,3} 3.0/.test(r.details[0].replace(/[\u2066\u2069]/g, '')), r.details[0]);
+});
+test('שני פרקים נפרדים לא מאוחדים לטווח אחד', () => {
+  setData(rainDay({ 10: { rain: 1 }, 11: { rain: 1 }, 15: { rain: 2 } }));
+  const r = RS(`rainSummary(intervalRows('2026-11-02', 8, 18))`);
+  eq(r.events.length, 2); ok(/2 פרקים נפרדים/.test(r.text), r.text);
+  eq([r.events[0].start, r.events[0].end, r.events[1].start, r.events[1].end], [9, 11, 14, 15]);
+});
+test('ההסתברות המרבית שייכת לשעה המאוחרת – ומוצגת ככזו', () => {
+  setData(rainDay({ 13: { rain: 0.6, popEns: 30, ensN: 122 }, 14: { rain: 0.7, popEns: 80, ensN: 122 } }));
+  const r = RS(`rainSummary(intervalRows('2026-11-02', 11, 16))`);
+  eq(r.events[0].maxPEnd, 14); ok(/הסתברות מרבית בשעה בודדת: 80%/.test(r.text), r.text);
+  ok(/80% \(.?13:00–14:00/.test(r.details[0]), r.details[0]);
+});
+test('גשם חלש בהסתברות גבוהה: מוצג, עוצמה "קל" לפי הכמות', () => {
+  setData(rainDay({ 12: { rain: 0.2, popEns: 75, ensN: 100 } }));
+  const r = RS(`rainNext('2026-11-02', 10)`);
+  eq(r.status, 'wet'); ok(/^גשם קל צפוי בין 11:00 ל-12:00/.test(r.text), r.text);
+});
+test('גשם משמעותי בהסתברות נמוכה – לא מוסתר', () => {
+  setData(rainDay({ 12: { rain: 4, popEns: 15, ensN: 100 } }));
+  const r = RS(`rainNext('2026-11-02', 10)`);
+  eq(r.status, 'wet'); ok(/גשם בינוני/.test(r.text) && /15%/.test(r.text), r.text);
+});
+test('בלי נתון כמות לא ממציאים עוצמה', () => {
+  setData(rainDay({ 12: { rain: null, popEns: 70, ensN: 100 } }));
+  const r = RS(`rainNext('2026-11-02', 10)`);
+  ok(/^גשם אפשרי/.test(r.text) && /לא נקבעה עוצמה/.test(r.details[0]), r.text + ' | ' + r.details[0]);
+});
+test('הפלגה 09–14: גשם לפני היציאה ואחרי החזרה לא נכלל; אחרי החזרה – הערה נפרדת', () => {
+  setData(rainDay({ 9: { rain: 2 }, 16: { rain: 2 } }));   // 08–09 ו-15–16
+  const r = RS(`rainForPlan({ date: '2026-11-02', from: 9, to: 14 })`);
+  eq(r.during.status, 'dry'); eq(r.after.status, 'wet');
+  eq([r.after.events[0].start, r.after.events[0].end], [15, 16]);
+});
+test('שעת החזרה: גשם 13–14 בתוך ההפלגה, 14–15 רק אחריה', () => {
+  setData(rainDay({ 14: { rain: 1 }, 15: { rain: 1 } }));
+  const r = RS(`rainForPlan({ date: '2026-11-02', from: 9, to: 14 })`);
+  eq([r.during.events[0].start, r.during.events[0].end], [13, 14]);
+  eq([r.after.events[0].start, r.after.events[0].end], [14, 15]);
+});
+test('חציית חצות: 4 השעות מ-22:00 כוללות את היום הבא', () => {
+  setData(rainDay({ 23: { rain: 1 } }).concat(rainDay({ 0: { rain: 1.5 }, 1: { rain: 1 } }, '2026-11-03')), '2026-11-02T20:00');
+  const r = RS(`rainNext('2026-11-02', 21, 4)`);
+  eq(r.events.length, 1); eq([r.events[0].start, r.events[0].end], [22, 1]);
+  ok(/בין 22:00 ל-01:00/.test(r.text), r.text);
+});
+test('מקור חלופי (Open-Meteo, >0.1 מ"מ): סף 60%, והמקור מצוין', () => {
+  setData(rainDay({ 11: { popOM: 50 }, 12: { popOM: 70 } }));
+  const r = RS(`rainNext('2026-11-02', 10)`);
+  eq(r.events.length, 1); eq(r.events[0].end, 12); eq(r.src, 'om'); ok(/Open-Meteo/.test(r.srcText), r.srcText);
+});
+test('סופת רעמים עם מעט משקעים: התרעה מובחנת', () => {
+  setData(rainDay({ 12: { rain: 0.1, code: 95 } }));
+  const r = RS(`rainNext('2026-11-02', 10)`);
+  ok(r.thunder && /^סופת רעמים צפויה בין 11:00 ל-12:00/.test(r.text), r.text);
+});
+test('גשם קל לא הופך הפלגה ל"לא מומלץ"', () => {
+  setData(rainDay({ 11: { rain: 1.5, popEns: 90, ensN: 100 }, 12: { rain: 1, popEns: 90, ensN: 100 } }));
+  eq(run(`planVerdict(planRows({ date: '2026-11-02', from: 9, to: 14 }))`), 0);
+});
+test('אנסמבל: ההסתברות מחושבת מהתרחישים התקינים באותה שעה', () => {
+  const time = ['2026-11-02T10:00'];
+  const hourly = { time };
+  for (let i = 0; i < 20; i++) hourly['precipitation_member' + String(i).padStart(2, '0')] = [i < 10 ? null : i < 15 ? 1 : 0];
+  ctx.__en = { hourly };
+  const m = run(`merge({ hourly: { time: ['2026-11-02T10:00'], temperature_2m: [20], precipitation_probability: [90], precipitation: [0.3], weather_code: [61], cloud_cover: [80], pressure_msl: [1010], wind_speed_10m: [10], wind_direction_10m: [270], wind_gusts_10m: [14] } }, null, null, [], __en)`);
+  const r = m.rows[0];
+  eq([r.ensN, r.popEns, r.popOM, r.popSrc], [10, 50, 90, 'ens'], JSON.stringify(r));
+});
+
+console.log('עקביות');
+test('דיוק ליד הסף: 1.34 מול סף 1.3 מוצג 1.34, ו-1.26 מוצג 1.3', () => {
+  run(`settings = { ...DEFAULTS }`);
+  eq(run(`fmtTh(1.34, 'wave', 1)`), '1.34'); eq(run(`fmtTh(1.26, 'wave', 1)`), '1.3'); eq(run(`fmtTh(16.3, 'wind')`), '16.3');
+});
+test('כיוון גלים נלקח מנתוני הגלים, לא מהרוח', () => {
+  const t = run(`waveNote([{ waveDir: 280, dir: 90 }, { waveDir: 290, dir: 90 }])`);
+  ok(/ממערב/.test(t) && /לכיוון החוף/.test(t), t);
+  ok(!/גלים/.test(run(`coastNote(290)`)), 'coastNote לא קובע דבר על הגלים');
 });
 
 console.log(`\n${pass} עברו, ${fail} נכשלו`);

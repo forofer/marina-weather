@@ -77,12 +77,14 @@ function merge(fc, md, mr, errors, en) {
   if (fc && fc.hourly) {
     const h = fc.hourly;
     h.time.forEach((t, i) => Object.assign(row(t), {
-      temp: h.temperature_2m[i], pop: h.precipitation_probability?.[i], rain: h.precipitation[i],
+      // precipitation ו-precipitation_probability מתייחסים לשעה שקדמה לחותמת הזמן (Open-Meteo)
+      temp: h.temperature_2m[i], popOM: h.precipitation_probability?.[i], rain: h.precipitation[i],
       code: h.weather_code[i], cloud: h.cloud_cover[i], vis: h.visibility?.[i], pres: h.pressure_msl[i],
       wind: h.wind_speed_10m[i], dir: h.wind_direction_10m[i], gust: h.wind_gusts_10m[i], cape: h.cape?.[i]
     }));
   }
-  // סיכוי לגשם מחושב מהאנסמבל (במקום precipitation_probability שסופר כל טיפה)
+  // סיכוי לגשם מהאנסמבל: אחוז התרחישים התקינים *באותה שעה* שצופים ≥0.5 מ"מ (לשעה שקדמה).
+  // נשמר בנפרד מהסיכוי של Open-Meteo (>0.1 מ"מ) – שני מדדים שונים, לא מערבבים בלי לציין
   let hasEnsemble = false, ensembleN = 0;
   if (en && en.hourly) {
     const h = en.hourly;
@@ -90,13 +92,13 @@ function merge(fc, md, mr, errors, en) {
     if (keys.length >= 10) {
       hasEnsemble = true; ensembleN = keys.length;
       h.time.forEach((t, i) => {
-        let n = 0, rainN = 0, drizN = 0;
-        for (const k of keys) { const v = h[k][i]; if (v == null) continue; n++; if (v >= RAIN_MM) rainN++; if (v >= DRIZZLE_MM) drizN++; }
-        if (!n) return;
+        let n = 0, rainN = 0, wetN = 0;
+        for (const k of keys) { const v = h[k][i]; if (v == null) continue; n++; if (v >= RAIN_MM) rainN++; if (v >= DRIZZLE_MM) wetN++; }
+        if (n < 10) return;                     // מעט מדי תרחישים תקינים – לא מחשבים הסתברות
         const r = row(t);
-        r.popAny = r.pop;                       // הערך המקורי של Open-Meteo (כל טיפה)
-        r.pop = Math.round(100 * rainN / n);    // סיכוי לגשם ≥0.5 מ"מ/שעה
-        r.drizzle = Math.round(100 * drizN / n);
+        r.ensN = n;
+        r.popEns = Math.round(100 * rainN / n);  // ≥0.5 מ"מ
+        r.popEns01 = Math.round(100 * wetN / n); // ≥0.1 מ"מ
       });
     }
   }
@@ -124,6 +126,8 @@ function merge(fc, md, mr, errors, en) {
   if (fc && fc.daily) fc.daily.time.forEach((d, i) => daily[d] = { sunrise: fc.daily.sunrise[i], sunset: fc.daily.sunset[i] });
 
   const rows = [...byTime.values()].sort((a, b) => a.t < b.t ? -1 : 1);
+  // pop – ההסתברות הזמינה הטובה ביותר (תאימות לקוד ישן); popSrc אומר מאיפה היא
+  rows.forEach(r => { if (isNum(r.popEns)) { r.pop = r.popEns; r.popSrc = 'ens'; } else if (isNum(r.popOM)) { r.pop = r.popOM; r.popSrc = 'om'; } });
   const waveAllNull = rows.every(r => r.wave == null);
   if (mr && waveAllNull) errors.push('מודל הגלים לא מחזיר נתונים לנקודה הזאת – הזז את נקודת הגלים מערבה בהגדרות');
 

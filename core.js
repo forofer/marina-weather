@@ -32,6 +32,14 @@ function whenWords(date) {
 }
 // סיבות בשפה פשוטה, עם המספר הרלוונטי
 // ערך מול הסף – עם דיוק נוסף כשהעיגול היה מסתיר את החריגה
+// ערך מול סף: כשהערך מעל הסף אבל העיגול היה משווה אותו לסף – מוסיפים ספרה (1.34 ולא 1.3)
+const THR_KEY = { wind: 'maxWind', gust: 'maxGust', wave: 'maxWave' };
+function fmtTh(v, k, d0 = 0) {
+  const max = settings[THR_KEY[k]];
+  if (!isNum(v) || !isNum(max) || v <= max) return fmt(v, d0);
+  let d = d0; while (d < d0 + 2 && +Number(v).toFixed(d) <= +Number(max).toFixed(d)) d++;
+  return fmt(v, d);
+}
 const OVER_NAME = { wind: ['רוח', 'קשר', 0], gust: ['משבים', 'קשר', 0], wave: ['גלים', 'מ׳', 1] };
 function overText(o) {
   const [name, unit, d0] = OVER_NAME[o.k];
@@ -272,9 +280,18 @@ function sailLine(wind, gust, lvl, waveMax) {
 function coastNote(deg) {
   if (deg == null) return '';
   const d = Math.abs(((deg - COAST_NORMAL) % 360 + 540) % 360 - 180);
-  if (d < 60) return 'רוח מהים לכיוון החוף – הגלים מתקדמים לעבר החוף';
-  if (d > 120) return 'רוח מהיבשה – ליד החוף הים בדרך כלל שקט יותר, ובהתרחקות הרוח והגלים מתחזקים';
+  if (d < 60) return 'רוח מהים לכיוון החוף';
+  if (d > 120) return 'רוח מהיבשה – הרוח עלולה להתחזק בהתרחקות מהחוף';
   return 'רוח בערך לאורך קו החוף';
+}
+// כיוון הגלים – מנתוני הגלים עצמם (לא נגזר מכיוון הרוח)
+function waveNote(rows) {
+  const wd = rows.map(r => r.waveDir).filter(isNum);
+  if (!wd.length) return '';
+  let x = 0, y = 0; wd.forEach(d => { x += Math.sin(d * Math.PI / 180); y += Math.cos(d * Math.PI / 180); });
+  const m = (Math.atan2(x, y) * 180 / Math.PI + 360) % 360;
+  const d = Math.abs(((m - COAST_NORMAL) % 360 + 540) % 360 - 180);
+  return `הגלים מגיעים ${from8(m)}${d < 60 ? ' – מהים הפתוח לכיוון החוף' : ''} (לפי תחזית הגלים)`;
 }
 // זווית ההפלגה בפועל לכל כיוון נפוץ, לפי כיוון הרוח – אותו חישוב בכל ההסברים
 const HEADINGS = [{ t: 'צפונה (נתניה)', h: 15 }, { t: 'דרומה (ת"א / יפו)', h: 195 }, { t: 'מערבה – לים הפתוח', h: 285 }, { t: 'חזרה מזרחה – לכיוון החוף', h: 105 }];
@@ -282,29 +299,119 @@ function courseNotes(deg) {
   if (deg == null) return [];
   return HEADINGS.map(x => ({ ...x, p: pointOfSail(deg, x.h) }));
 }
-// גשם בשעה r ובשלוש השעות שאחריה – בלי הבטחות מוחלטות
-function rainSoonText(r) {
-  const next = data.rows.filter(x => x.t >= r.t).slice(0, 4);
-  const end = hm(Math.min(24, r.hour + 4));
-  const wetH = next.filter(x => (x.pop ?? 0) >= 25 || (x.rain ?? 0) >= RAIN_MM);
-  const maxPop = Math.max(0, ...next.map(x => x.pop ?? 0));
-  if (!next.some(x => isNum(x.pop) || isNum(x.rain))) return { wet: false, t: 'אין נתוני גשם' };
-  if (wetH.length) return { wet: true, t: `סיכוי לגשם ${fmt(maxPop)}% ב-<bdi dir="ltr">${hm(wetH[0].hour)}</bdi>` };
-  if (maxPop >= 5) return { wet: false, t: `סיכוי נמוך לגשם עד <bdi dir="ltr">${end}</bdi>` };
-  return { wet: false, t: `לא צפוי גשם עד <bdi dir="ltr">${end}</bdi>` };
+/* ===================== גשם – מודל אחד לכל המסכים =====================
+ זמן: ב-Open-Meteo הכמות (precipitation) וההסתברות מתייחסות לשעה שקדמה לחותמת הזמן –
+   השורה של 16:00 מתארת את 15:00–16:00. כל הטווחים שמוצגים מחושבים כך.
+ הסתברות: אם יש אנסמבל לשעה – אחוז התרחישים התקינים באותה שעה עם ≥0.5 מ"מ (popEns, מתוך ensN);
+   אחרת – precipitation_probability של Open-Meteo (>0.1 מ"מ, popOM). אלה שני מדדים שונים, והמקור מוצג.
+   "הסתברות מרבית בשעה בודדת" איננה ההסתברות שיירד גשם במהלך כל הטווח.
+ עוצמה: לפי כמות בשעה (AMS Glossary of Meteorology): עד 2.5 מ"מ קל, 2.5–7.6 בינוני, מעל 7.6 חזק.
+   זו כמות ממוצעת לשעה – לא עוצמת שיא רגעית. בלי נתון כמות לא קובעים עוצמה. כמות קטנה לבדה לא מוגדרת "טפטוף".
+ כללי הצגה – שעה נחשבת גשומה אם:
+   כמות ≥0.5 מ"מ (גם כשההסתברות נמוכה – לא מסתירים כמות משמעותית) | הסתברות אנסמבל ≥40% |
+   הסתברות Open-Meteo ≥60% | סופת רעמים (קוד ≥95, גם כשהכמות קטנה – עדיפות גבוהה).
+ שעה בלי כמות ובלי הסתברות ובלי קוד = חסרה. חסר ≠ אפס: לא מציגים אותה כ"יבש".
+*/
+const RAIN = { mm: 0.5, pEns: 40, pOM: 60, light: 2.5, heavy: 7.6 };
+const INT_NAME = ['קל', 'בינוני', 'חזק'];
+const rainIntensity = mm => !isNum(mm) || mm < 0.1 ? null : mm <= RAIN.light ? 0 : mm <= RAIN.heavy ? 1 : 2;
+function rainProb(r) {
+  if (isNum(r.popEns)) return { p: r.popEns, src: 'ens', n: r.ensN };
+  if (isNum(r.popOM)) return { p: r.popOM, src: 'om' };
+  return null;
 }
-function rainText(rows) {
-  const wet = rows.filter(r => (r.pop ?? 0) >= 30 || (r.rain ?? 0) >= RAIN_MM);
-  if (!wet.length) {
-    const cloud = rows.reduce((a, r) => a + (r.cloud ?? 0), 0) / Math.max(1, rows.length);
-    const maxDriz = Math.max(0, ...rows.map(r => r.drizzle ?? 0));
-    const sky = cloud < 25 ? 'בהיר' : cloud < 70 ? 'מעונן חלקית' : 'מעונן';
-    return { t: maxDriz >= 30 ? `${sky}, ייתכן טפטוף קל (${maxDriz}%)` : `${sky}, ללא גשם`, wet: false };
+function rainHour(r) {
+  if (!r || r.placeholder) return { missing: true };
+  const amt = isNum(r.rain) ? r.rain : null, pr = rainProb(r);
+  const thunder = isNum(r.code) && r.code >= 95;
+  if (amt == null && !pr && !thunder) return { missing: true };
+  const byAmt = amt != null && amt >= RAIN.mm;
+  const byP = !!pr && pr.p >= (pr.src === 'ens' ? RAIN.pEns : RAIN.pOM);
+  return { missing: false, wet: byAmt || byP || thunder, thunder, amt, pr };
+}
+// השורות שהמרווח שלהן נמצא בתוך [date+from, date+to]: from+1 … to (גם מעבר לחצות)
+function intervalRows(date, from, to) {
+  const idx = rowIndex(), out = [];
+  for (let k = 1; k <= to - from; k++) {
+    const t = addHours(date, from, k);
+    out.push(idx.get(t) || { t, date: t.slice(0, 10), hour: +t.slice(11, 13), placeholder: true });
   }
-  const maxPop = Math.max(...wet.map(r => r.pop ?? 0));
-  const mm = wet.reduce((a, r) => a + (r.rain ?? 0), 0);
-  const chance = maxPop >= 10 ? `סיכוי עד ${fmt(maxPop)}%` : 'סיכוי נמוך';
-  return { t: `גשם אפשרי \u2066${pad2(wet[0].hour)}:00–${pad2(wet[wet.length - 1].hour + 1)}:00\u2069 (${fmt(mm, 1)} מ"מ, ${chance})`, wet: true };
+  return out;
+}
+// פירוק לאירועים נפרדים: שעה יבשה או חסרה מפרידה בין אירועים
+function rainEvents(rows) {
+  const groups = []; let cur = null, prev = null, missing = 0;
+  for (const r of rows) {
+    const h = rainHour(r);
+    if (h.missing) missing++;
+    const contig = prev && tMs(r.t) - tMs(prev.t) === 3600e3;
+    if (h.wet) {
+      if (!cur || !contig) { if (cur) groups.push(cur); cur = { rows: [], hours: [] }; }
+      cur.rows.push(r); cur.hours.push(h);
+    } else if (cur) { groups.push(cur); cur = null; }
+    prev = r;
+  }
+  if (cur) groups.push(cur);
+  const events = groups.map(g => {
+    const first = g.rows[0], last = g.rows[g.rows.length - 1];
+    const amts = g.hours.map((h, i) => [h.amt, g.rows[i]]).filter(([a]) => isNum(a));
+    const probs = g.hours.map((h, i) => [h.pr, g.rows[i]]).filter(([p]) => p);
+    const ints = amts.map(([a]) => rainIntensity(a)).filter(x => x != null);
+    const maxA = amts.reduce((m, x) => !m || x[0] > m[0] ? x : m, null);
+    const maxP = probs.reduce((m, x) => !m || x[0].p > m[0].p ? x : m, null);
+    const srcs = [...new Set(probs.map(([p]) => p.src))];
+    return {
+      start: (first.hour + 23) % 24, end: last.hour, startT: first.t, endT: last.t, n: g.rows.length,
+      total: amts.length ? amts.reduce((s, [a]) => s + a, 0) : null,
+      maxMm: maxA ? maxA[0] : null, maxMmEnd: maxA ? maxA[1].hour : null,
+      maxP: maxP ? maxP[0].p : null, maxPEnd: maxP ? maxP[1].hour : null,
+      src: srcs.length === 1 ? srcs[0] : srcs.length ? 'mixed' : null, ensN: maxP && maxP[0].n,
+      intMin: ints.length ? Math.min(...ints) : null, intMax: ints.length ? Math.max(...ints) : null,
+      thunder: g.hours.some(h => h.thunder), amountsKnown: amts.length
+    };
+  });
+  return { events, missing, total: rows.length };
+}
+const hhSpan = (a, b) => `\u2066${hm(a)}–${hm(b)}\u2069`;
+function rainWhat(e) {
+  if (e.thunder) return 'סופת רעמים';
+  if (e.intMax == null) return 'גשם אפשרי';
+  return 'גשם ' + (e.intMin === e.intMax ? INT_NAME[e.intMax] : `${INT_NAME[e.intMin]} עד ${INT_NAME[e.intMax]}`);
+}
+const PROB_SRC = { ens: 'אחוז התרחישים (ECMWF/GFS/ICON) שצופים 0.5 מ"מ לפחות בשעה', om: 'הסתברות Open-Meteo ל-0.1 מ"מ לפחות בשעה', mixed: 'חלק מהשעות לפי תרחישים (0.5 מ"מ) וחלק לפי Open-Meteo (0.1 מ"מ)' };
+// סיכום אחד לכל מקום בממשק. status: dry (מסתירים) | wet | missing (אין נתונים)
+function rainSummary(rows) {
+  const { events, missing, total } = rainEvents(rows);
+  const missNote = missing && missing < total ? `חסרים נתוני גשם ${missing === 1 ? 'לשעה אחת' : `ל-${missing} שעות`}` : '';
+  if (!events.length) {
+    if (total && missing === total) return { status: 'missing', events, text: 'אין נתוני גשם לשעות האלה', details: [] };
+    return { status: 'dry', events, text: '', note: missNote, details: [] };
+  }
+  const maxP = Math.max(...events.map(e => e.maxP ?? -1));
+  const thunder = events.some(e => e.thunder);
+  let text;
+  if (events.length === 1) text = `${rainWhat(events[0])} ${events[0].thunder ? 'צפויה' : 'צפוי'} בין ${hm(events[0].start)} ל-${hm(events[0].end)}`;
+  else text = `${thunder ? 'גשם וסופת רעמים' : 'גשם'} ב-${events.length} פרקים נפרדים: ${events.map(e => hhSpan(e.start, e.end)).join(' ו-')}`;
+  if (maxP >= 0) text += `. הסתברות מרבית בשעה בודדת: ${maxP}%`;
+  const details = events.map(e => {
+    const parts = [`${hhSpan(e.start, e.end)}: ${rainWhat(e)}`];
+    if (e.total != null && e.total >= 0.1) parts.push(`כמות מצטברת ${fmt(e.total, 1)} מ"מ`);
+    if (e.maxMm != null && e.maxMm >= 0.1 && e.n > 1) parts.push(`בשעה הגשומה ביותר (${hhSpan((e.maxMmEnd + 23) % 24, e.maxMmEnd)}) ${fmt(e.maxMm, 1)} מ"מ`);
+    if (e.amountsKnown === 0) parts.push('אין נתון כמות – לא נקבעה עוצמה');
+    if (e.maxP != null) parts.push(`הסתברות מרבית בשעה בודדת ${e.maxP}% (${hhSpan((e.maxPEnd + 23) % 24, e.maxPEnd)})`);
+    return parts.join(' · ');
+  });
+  const srcs = [...new Set(events.map(e => e.src).filter(Boolean))];
+  const src = srcs.length === 1 ? srcs[0] : srcs.length ? 'mixed' : null;
+  return { status: 'wet', events, text, thunder, note: missNote, details, src, srcText: src ? PROB_SRC[src] : '' };
+}
+// גשם ב-4 השעות שאחרי השעה שנבחרה (המרווחים h…h+4)
+const rainNext = (date, hour, k = 4) => rainSummary(intervalRows(date, hour, hour + k));
+// גשם בהפלגה: מהיציאה עד החזרה, ובנפרד – השעתיים שאחרי החזרה
+function rainForPlan(p) {
+  const during = rainSummary(intervalRows(p.date, p.from, p.to));
+  const after = rainSummary(intervalRows(p.date, p.to, p.to + 2));
+  return { during, after };
 }
 const tMs = t => Date.parse(t + ':00Z');
 function greenWindows(rows, minLen = 1) {

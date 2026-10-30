@@ -2,7 +2,7 @@
 // הרצה: node tests/shots.js <תיקיית-פלט> [--font=200]   (‎--font=200 מגדיל את גודל הטקסט של הדפדפן ל-200%)
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
-const { T, fc, md, mr } = require('./mock-data.js');
+const { T, fc, md, mr } = require(process.env.MOCK || './mock-data.js');
 const out = process.argv[2] || 'shots';
 const font = +((process.argv.find(a => a.startsWith('--font=')) || '').split('=')[1] || 100);
 const only = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1];

@@ -8,7 +8,8 @@ const FIXED = Date.parse('2026-10-30T10:30:00+02:00');
 let pass = 0, fail = 0;
 const ok = (c, name, extra = '') => { if (c) { pass++; console.log('  ✓ ' + name); } else { fail++; console.log('  ✗ ' + name + ' ' + extra); } };
 
-async function open(b, { vp = { width: 390, height: 844 }, scheme = 'light', marine = 'ok', font = 100, fixed = true } = {}) {
+async function open(b, { vp = { width: 390, height: 844 }, scheme = 'light', marine = 'ok', font = 100, fixed = true, data: dm = null, ens = null } = {}) {
+  const D = dm || mock;
   const mobile = vp.width < 900;
   const ctx = await b.newContext({ viewport: vp, isMobile: mobile, hasTouch: mobile, colorScheme: scheme, timezoneId: 'Asia/Jerusalem', reducedMotion: 'reduce' });
   const p = await ctx.newPage();
@@ -16,9 +17,9 @@ async function open(b, { vp = { width: 390, height: 844 }, scheme = 'light', mar
   if (font !== 100) { const s = await ctx.newCDPSession(p); await s.send('Page.enable'); await s.send('Page.setFontSizes', { fontSizes: { standard: 16 * font / 100, fixed: 13 * font / 100 } }); }
   if (fixed) await p.addInitScript(t => { const R = Date; class D extends R { constructor(...a) { a.length ? super(...a) : super(t); } static now() { return t; } } window.Date = D; try { localStorage.setItem('introSeen', '1'); } catch (_) {} }, FIXED);
   await p.route(/goatcounter|zgo|fonts\.|openseamap|arcgis/, r => r.abort());
-  await p.route('**/api.open-meteo.com/**', r => r.fulfill({ json: r.request().url().includes('models=') ? md : fc }));
-  await p.route('**/marine-api.open-meteo.com/**', r => marine === 'fail' ? r.fulfill({ status: 500, json: { reason: 'down' } }) : r.fulfill({ json: mr }));
-  await p.route('**/ensemble-api.open-meteo.com/**', r => r.fulfill({ json: { hourly: { time: T } } }));
+  await p.route('**/api.open-meteo.com/**', r => r.fulfill({ json: r.request().url().includes('models=') ? D.md : D.fc }));
+  await p.route('**/marine-api.open-meteo.com/**', r => marine === 'fail' ? r.fulfill({ status: 500, json: { reason: 'down' } }) : r.fulfill({ json: D.mr }));
+  await p.route('**/ensemble-api.open-meteo.com/**', r => r.fulfill({ json: ens || { hourly: { time: D.T } } }));
   await p.route('**/embed.windy.com/**', r => r.fulfill({ body: '<html></html>', contentType: 'text/html' }));
   await p.goto(site); await p.waitForTimeout(900);
   return { p, ctx, errs };
@@ -174,6 +175,59 @@ const clipped = p => p.evaluate(() => {
       const overlap = await p.$$eval('.metric', els => els.filter(e => { const a = e.querySelector('.m-label').getBoundingClientRect(), b = e.querySelector('.m-value').getBoundingClientRect(); return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom; }).length);
       ok(overlap === 0, `${w}px בטקסט 200%: שם המדד והמספר לא חופפים (גם בטווחים בתכנון)`, 'overlap=' + overlap);
     }
+    await ctx.close();
+  }
+
+  console.log('גשם: אותו מידע בסיכום, בגרף, בתכנון ובשיתוף');
+  const RM = require('./mock-rain.js');
+  for (const variant of ['om', 'ens']) {
+    const { p, ctx, errs } = await open(b, { data: RM, ens: variant === 'ens' ? RM.en : null });
+    const tag = variant === 'ens' ? ' (תרחישים)' : ' (Open-Meteo)';
+    // 10:00 → ארבע השעות הבאות (10–14): גשם קל 11:00–13:00
+    const rt = await txt(p, '#hour-card .rain .rt');
+    ok(/גשם קל צפוי בין 11:00 ל-13:00/.test(rt) && /הסתברות מרבית בשעה בודדת: 80%/.test(rt), 'סיכום: מתי, עוצמה והסתברות מרבית בשעה בודדת' + tag, rt);
+    await p.click('#hour-card .rain summary'); await p.waitForTimeout(100);
+    const det = await txt(p, '#hour-card .rain ul');
+    ok(/כמות מצטברת 2.3 מ"מ/.test(det) && /1.5 מ"מ/.test(det) && (variant === 'ens' ? /תרחישים/.test(det) : /Open-Meteo/.test(det)), 'פירוט: כמות מצטברת, השעה הגשומה ביותר ומקור ההסתברות' + tag, det);
+    ok(await p.$$eval('#trend svg rect title', t => t.some(x => /11:00–12:00/.test(x.textContent)) && t.some(x => /12:00–13:00/.test(x.textContent))), 'הגרף מסמן גשם באותן שעות (11:00–13:00)' + tag);
+    // תכנון 09–14: אותו טקסט; 15:00–16:00 רק "אחרי החזרה"
+    await p.click('#view-plan'); await p.waitForTimeout(200);
+    await p.selectOption('#p-date', '2026-10-30'); await p.selectOption('#p-from', '9'); await p.selectOption('#p-to', '14'); await p.waitForTimeout(250);
+    const pr = await txt(p, '#p-result .rain:not(.after) .rt');
+    ok(pr === rt, 'התכנון מציג בדיוק אותה הודעת גשם כמו הסיכום' + tag, `${pr} | ${rt}`);
+    const pa = await txt(p, '#p-result .rain.after .rt');
+    ok(/^אחרי החזרה: גשם בינוני צפוי בין 15:00 ל-16:00/.test(pa), 'גשם אחרי החזרה – הערה נפרדת, עם ניסוח ברור' + tag, pa);
+    ok(/מעילי גשם/.test(await txt(p, '.checklist')), 'רשימת ההכנות כוללת ציוד גשם' + tag);
+    await p.evaluate(() => { window.__shared = ''; navigator.clipboard.writeText = t => { window.__shared = t; return Promise.resolve(); }; });
+    await p.click('#p-copy'); await p.waitForTimeout(150);
+    const sh = await p.evaluate(() => window.__shared);
+    ok(sh.includes(rt.replace(/[\u2066\u2069]/g, '')) && /אחרי החזרה: גשם בינוני/.test(sh), 'טקסט השיתוף כולל את אותה הודעה' + tag, sh);
+    // הפלגה יבשה: אין שורת גשם בשיתוף ואין כרטיס גשם
+    await p.selectOption('#p-from', '17'); await p.selectOption('#p-to', '20'); await p.waitForTimeout(250);
+    ok(!(await p.$('#p-result .rain:not(.after)')), 'הפלגה יבשה: אין כרטיס גשם' + tag);
+    await p.click('#p-copy'); await p.waitForTimeout(150);
+    ok(!/גשם/.test(await p.evaluate(() => window.__shared)), 'הפלגה יבשה: אין שורת גשם בשיתוף' + tag, await p.evaluate(() => window.__shared));
+    ok(errs.length === 0, 'אין שגיאות JS' + tag, errs.join(' | '));
+    await ctx.close();
+  }
+  {
+    const { p, ctx } = await open(b, { data: RM });
+    await p.click('.hr[data-h="6"]'); await p.waitForTimeout(150);
+    ok(!(await p.$('#hour-card .rain')) && !/לא צפוי גשם|ללא גשם/.test(await txt(p, 'body')), 'שעה יבשה: אין שורת גשם ואין הודעות "לא צפוי גשם"');
+    await p.click('.day-tab[data-date="2026-10-31"]'); await p.waitForTimeout(200);
+    const st = await txt(p, '#hour-card .rain.storm .rt');
+    ok(/סופת רעמים צפויה בין 11:00 ל-12:00/.test(st), 'סופת רעמים עם מעט משקעים – התרעה מובחנת', st);
+    await p.click('.hr[data-h="16"]'); await p.waitForTimeout(200);
+    ok(/אין נתוני גשם/.test(await txt(p, '#hour-card .rain-miss')) && !(await p.$('#hour-card .rain')), 'נתוני גשם חסרים: הודעה שקטה, לא "יבש"');
+    await p.click('#view-table'); await p.waitForTimeout(200);
+    ok(await p.$$eval('.fc tbody tr', trs => { const tr = trs.find(t => /גשם \(מ"מ\)/.test(t.textContent)); return !!tr && /\?/.test(tr.textContent); }), 'בטבלה: גשם חסר מוצג "?" ולא 0');
+    await ctx.close();
+  }
+
+  console.log('תחזית ולא מדידה');
+  {
+    const { p, ctx } = await open(b);
+    ok(/^תחזית לשעה 10:00/.test(await txt(p, '#hc-title')) && !/עכשיו/.test(await txt(p, '#hc-title')), 'כרטיס השעה כתוב כתחזית ("תחזית לשעה…", בלי "עכשיו")', await txt(p, '#hc-title'));
     await ctx.close();
   }
 

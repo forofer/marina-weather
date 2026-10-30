@@ -24,7 +24,9 @@
   --wind: #1d5fa8;
   --gust: #5f86b3;
   --wave: #2a9a96;
-  --rain: #3b82c4;
+  --rain: #2f74b5;
+  --rain-soft: #e8f1fa;
+  --rain-ink: #1d4f80;
   --night: rgba(16, 42, 67, 0.07);
   --night-key: rgba(16, 42, 67, 0.16);
   --thr: #b36b00;
@@ -47,7 +49,7 @@
     --maybe: #f2a93b; --maybe-soft: #352812; --maybe-ink: #f6c97f;
     --nogo: #f06868; --nogo-soft: #3b1a1c; --nogo-ink: #ffa3a3;
     --none: #8597aa; --none-soft: #1f2a36; --none-ink: #a9bacb;
-    --wind: #6fb3f2; --gust: #8fa6bf; --wave: #4fc7bf; --rain: #6aa8e6;
+    --wind: #6fb3f2; --gust: #8fa6bf; --wave: #4fc7bf; --rain: #6aa8e6; --rain-soft: #172d44; --rain-ink: #a9cdf2;
     --night: rgba(0, 0, 0, 0.22); --night-key: rgba(0, 0, 0, 0.45); --thr: #f2a93b; --trip: #b18cf2;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     --err-bg: #3b1a1c; --err-fg: #ffa3a3;
@@ -62,7 +64,7 @@
   --maybe: #f2a93b; --maybe-soft: #352812; --maybe-ink: #f6c97f;
   --nogo: #f06868; --nogo-soft: #3b1a1c; --nogo-ink: #ffa3a3;
   --none: #8597aa; --none-soft: #1f2a36; --none-ink: #a9bacb;
-  --wind: #6fb3f2; --gust: #8fa6bf; --wave: #4fc7bf; --rain: #6aa8e6;
+  --wind: #6fb3f2; --gust: #8fa6bf; --wave: #4fc7bf; --rain: #6aa8e6; --rain-soft: #172d44; --rain-ink: #a9cdf2;
   --night: rgba(0, 0, 0, 0.22); --night-key: rgba(0, 0, 0, 0.45); --thr: #f2a93b; --trip: #b18cf2;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --err-bg: #3b1a1c; --err-fg: #ffa3a3;
@@ -381,6 +383,8 @@ table.fc { border-collapse: separate; border-spacing: 0; direction: ltr; font-si
 .fc thead th.sel { color: var(--accent-ink); }
 .fc td.ov1 { background: var(--maybe-soft); color: var(--maybe-ink); font-weight: 600; }
 .fc td.ov2 { background: var(--nogo-soft); color: var(--nogo-ink); font-weight: 600; }
+.fc td.rn { background: var(--rain-soft); color: var(--rain-ink); font-weight: 600; }
+.table-note { margin-top: 0.5rem; }
 .fc td.ov1.sel, .fc td.ov2.sel { box-shadow: inset 0 0 0 2px var(--accent); }
 .fc .vc .ico { color: var(--st); }
 .fc .sub { display: block; font-size: 0.75rem; color: var(--ink-3); }
@@ -522,6 +526,21 @@ body.modal-open { overflow: hidden; }
 .dc-more > summary { min-height: 2.5rem; font-size: 0.875rem; }
 .dc-more .note { margin-top: 0; }
 .decision .alert { margin-top: 0.5rem; padding-block: 0.45rem; }
+/* גשם: שורה קומפקטית, פרטים בלחיצה. גשם – כחול רגוע; סופת רעמים – התרעה */
+.rain { margin-top: 0.6rem; border-radius: var(--r-s); background: var(--rain-soft); color: var(--rain-ink); font-size: 0.9375rem; }
+.rain > summary { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.55rem 0.75rem; cursor: pointer; list-style: none; min-height: 2.75rem; }
+.rain > summary::-webkit-details-marker { display: none; }
+.rain > summary .ico { margin-top: 0.1rem; color: var(--rain); }
+.rain .rt { flex: 1; min-width: 0; }
+.rain .rt b { font-family: var(--num); font-weight: 600; }
+.rain .more-l { font-size: 0.8125rem; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; margin-top: 0.1rem; }
+.rain[open] .more-l { visibility: hidden; }
+.rain ul { margin: 0; padding: 0 2.25rem 0.6rem 0.75rem; font-size: 0.875rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.rain li.src { color: var(--ink-2); list-style: none; margin-inline-start: -1rem; }
+.rain.storm { background: var(--nogo-soft); color: var(--nogo-ink); border: 1px solid var(--nogo); font-weight: 600; }
+.rain.storm > summary .ico { color: var(--nogo); }
+.rain.after { background: transparent; border: 1px dashed var(--rain); }
+.rain-miss { display: flex; gap: 0.4rem; align-items: center; margin: 0.6rem 0 0; font-size: 0.8125rem; color: var(--ink-2); }
 /* החלון המתאים */
 .wins { display: flex; flex-direction: column; gap: 0.5rem; }
 .win { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; padding: 0.6rem 0.75rem; border-radius: var(--r-s); background: var(--surface-2); }
@@ -555,7 +574,7 @@ body.modal-open { overflow: hidden; }
 }
 /* מחשב: החלטה והחלון מימין, השעה הנבחרת משמאל; בתכנון – החלטה ומדדים באותה שורה */
 @media (min-width: 56.25em) {
-  .p-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+  .p-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
 }
 /* טקסט מוגדל או מסך צר מאוד: מדדים אחד מתחת לשני, בלי להקטין כתב */
 @media (max-width: 20em) {
