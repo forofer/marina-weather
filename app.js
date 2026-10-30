@@ -807,9 +807,11 @@ const locKey = () => [settings.windLat, settings.windLon, settings.waveLat, sett
 
 /* ===================== מפה (Windy) ===================== */
 let windyOverlay = 'wind';
-// הערה: בהטמעה של Windy חייבים product=ecmwf. Windy בוחר בעצמו את מודל הגלים לשכבות גלים/סוול.
-// (product=ecmwfWaves בכתובת גורם למפה להתעלם מהשכבה ולהציג רוח – נבדק בתוך המפה עצמה)
+// מפה מוטמעת של Windy: רוח ומשבים עובדים. גלים/סוול – Windy מחליף בזמן הטעינה לרוח (מירוץ בקוד האתחול שלהם,
+// לא ניתן לשליטה מבחוץ: גם product בכתובת וגם הודעות postMessage לא קובעים שכבה), לכן הם נפתחים באתר המלא.
 const WINDY_LAYERS = { wind: 'רוח', gust: 'משבים', waves: 'גלים', swell1: 'סוול' };
+// שכבות שלא נטענות באופן אמין במפה המוטמעת (נבדק בקוד של Windy ובטעינות חוזרות): מציגים הודעה וקישור
+const WINDY_EXTERNAL = ['waves', 'swell1'];
 function windyUrl(overlay = windyOverlay) {
   const s = settings;
   return `https://embed.windy.com/embed2.html?lat=${s.windLat}&lon=${s.windLon - 0.25}&detailLat=${s.windLat}&detailLon=${s.windLon}` +
@@ -823,6 +825,21 @@ function windyTimeout() {
     const w = $('windy-wrap');
     if (!w.classList.contains('loaded')) w.querySelector('.windy-loading').innerHTML = 'המפה לא נטענה. <a href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener">פתחו ב-Windy</a>';
   }, 15000);
+}
+function applyWindyLayer() {
+  const ext = WINDY_EXTERNAL.includes(windyOverlay);
+  $('windy-ext').classList.toggle('hidden', !ext);
+  $('windy-frame').classList.toggle('hidden', ext);
+  if (ext) {
+    const name = WINDY_LAYERS[windyOverlay];
+    $('windy-ext-t').textContent = `שכבת ה${name} לא זמינה במפה המוטמעת`;
+    $('windy-ext-l').textContent = `פתח שכבת ${name} ב-Windy`;
+    $('windy-ext-a').href = windyFull();
+    $('windy-wrap').classList.add('loaded');
+    return;
+  }
+  const u = windyUrl();
+  if ($('windy-frame').src !== u) { $('windy-wrap').classList.remove('loaded'); $('windy-frame').src = u; windyTimeout(); }
 }
 // המפה ממלאת את הגובה שנשאר מעל סרגל הניווט
 function fitWindy() {
@@ -849,11 +866,7 @@ function showView(v) {
   store.set('local', 'view_v3', v);
   if (changed) track('view-' + v);
   if (data && v !== 'windy') renderAll(); // הרוחב האמיתי ידוע רק כשהמסך גלוי
-  if (v === 'windy') {
-    const u = windyUrl();
-    if ($('windy-frame').src !== u) { $('windy-wrap').classList.remove('loaded'); $('windy-frame').src = u; windyTimeout(); }
-    requestAnimationFrame(fitWindy);
-  }
+  if (v === 'windy') { applyWindyLayer(); requestAnimationFrame(fitWindy); }
   if (changed) window.scrollTo(0, scrollMem[v] || 0);
 }
 
@@ -964,9 +977,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.map-bar .seg').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('.map-bar .seg').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', x === b); });
     windyOverlay = b.dataset.overlay;
-    $('windy-wrap').classList.remove('loaded');
-    $('windy-frame').src = windyUrl();
     $('windy-open').href = windyFull();
+    applyWindyLayer();
   }));
   $('windy-frame').addEventListener('load', () => $('windy-wrap').classList.add('loaded'));
   // חלון הגדרות: פוקוס נכנס לחלון, נשאר בו (Tab), וחוזר לכפתור שפתח אותו

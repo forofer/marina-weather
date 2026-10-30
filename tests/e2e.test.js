@@ -238,9 +238,12 @@ const clipped = p => p.evaluate(() => {
     await p.click('#view-windy'); await p.waitForTimeout(300);
     await p.click('.map-bar .seg[data-overlay="waves"]'); await p.waitForTimeout(100);
     ok(await p.$eval('.map-bar .seg[data-overlay="waves"]', e => e.getAttribute('aria-checked') === 'true'), 'בחירת שכבה מסומנת');
-    const src = await p.$eval('#windy-frame', e => e.src);
-    ok(/overlay=waves/.test(src) && /product=ecmwf&/.test(src), 'המפה עוברת לשכבת גלים עם product=ecmwf (נבדק גם בתוך Windy עצמה)', src);
-    ok(/waves/.test(await p.$eval('#windy-open', e => e.href)), 'הקישור ל-Windy פותח את אותה שכבה');
+    ok(await p.isVisible('#windy-ext') && !(await p.isVisible('#windy-frame')), 'גלים: במקום מפה שמציגה רוח – הודעה ברורה');
+    ok(/Waves-waves\?waves/.test(await p.$eval('#windy-ext-a', e => e.href)) && /גלים/.test(await txt(p, '#windy-ext')), 'הקישור פותח את שכבת הגלים באתר Windy');
+    await p.click('.map-bar .seg[data-overlay="swell1"]'); await p.waitForTimeout(100);
+    ok(/Swell-swell1/.test(await p.$eval('#windy-ext-a', e => e.href)) && /סוול/.test(await txt(p, '#windy-ext')), 'סוול: הודעה וקישור לשכבת הסוול');
+    await p.click('.map-bar .seg[data-overlay="gust"]'); await p.waitForTimeout(100);
+    ok(await p.isVisible('#windy-frame') && /overlay=gust/.test(await p.$eval('#windy-frame', e => e.src)), 'משבים: המפה המוטמעת חוזרת ומציגה משבים');
     const gap = await p.evaluate(() => document.querySelector('#view-tabs').getBoundingClientRect().top - document.querySelector('#windy-wrap').getBoundingClientRect().bottom);
     ok(gap >= 0 && gap < 40, 'המפה ממלאת את הגובה שמעל סרגל הניווט', 'gap=' + gap);
     await ctx.close();

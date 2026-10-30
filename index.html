@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=5.1">
+  <link rel="stylesheet" href="app.css?v=5.1.1">
 </head>
 <body>
 <div class="app">
@@ -115,7 +115,13 @@
       <summary><span data-ico="clock" data-s="16"></span>זמן המפה נבחר בנפרד</summary>
       <p>המפה של Windy מציגה את התחזית לשעה הנוכחית, ולא מסונכרנת עם היום והשעה שבחרתם במסכים האחרים. אפשר לבחור זמן בסרגל שבתחתית המפה. ב-Windy הסוול נקרא "גיבוע". לגלילת הדף – גוללים מחוץ למפה.</p>
     </details>
-    <div class="windy-wrap" id="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe></div>
+    <div class="windy-wrap" id="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe>
+      <div class="windy-ext hidden" id="windy-ext" role="status">
+        <span class="we-ico" data-ico="waves" data-s="28"></span>
+        <p class="we-t" id="windy-ext-t">שכבת הגלים לא זמינה במפה המוטמעת</p>
+        <p class="we-s">Windy לא מאפשר להציג את השכבה הזו באופן אמין בתוך אתר אחר – היא נפתחת במקומה ברוח. אפשר לפתוח אותה באתר Windy, ואת נתוני הגלים לנקודה שלנו רואים במסך "נתונים".</p>
+        <a class="btn primary" id="windy-ext-a" href="https://www.windy.com/" target="_blank" rel="noopener"><span data-ico="external-link" data-s="18"></span><span id="windy-ext-l">פתח שכבת גלים ב-Windy</span></a>
+      </div></div>
   </main>
 
   <!-- הגדרות -->
@@ -170,10 +176,10 @@
   </footer>
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=5.1"></script>
-  <script src="core.js?v=5.1"></script>
-  <script src="data.js?v=5.1"></script>
-  <script src="app.js?v=5.1"></script>
+  <script src="icons.js?v=5.1.1"></script>
+  <script src="core.js?v=5.1.1"></script>
+  <script src="data.js?v=5.1.1"></script>
+  <script src="app.js?v=5.1.1"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
