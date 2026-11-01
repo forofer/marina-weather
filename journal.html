@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=6.1">
-  <link rel="stylesheet" href="journal.css?v=6.1">
+  <link rel="stylesheet" href="app.css?v=6.2">
+  <link rel="stylesheet" href="journal.css?v=6.2">
 </head>
 <body>
 <div class="app">
@@ -31,6 +31,7 @@
   </header>
 
 <main class="jwrap">
+  <div class="jbanner demo hidden" id="demo-banner"></div>
   <div class="jbanner err hidden" id="save-error" role="alert"></div>
   <div class="jbanner warn hidden" id="backup-warn" role="status"></div>
 
@@ -46,25 +47,6 @@
 
   <!-- תכניות מהמסך "תכנון" שהזמן שלהן עבר -->
   <section id="plans-sec" class="hidden" aria-label="תכניות שעברו"></section>
-
-  <!-- יומן מלא -->
-  <section id="full" class="hidden">
-    <div class="j-head">
-      <h1>יומן הפלגות</h1>
-      <div class="j-actions">
-        <button class="btn" data-open="import"><span data-ico="upload" data-s="18"></span>ייבוא</button>
-        <button class="btn" data-open="manual"><span data-ico="plus" data-s="18"></span>הוספה ידנית</button>
-      </div>
-    </div>
-    <section class="card" id="summary-sec" aria-label="סיכום"></section>
-    <div class="j-filter">
-      <label class="j-search"><span data-ico="search" data-s="18"></span><input type="search" id="q" placeholder="חיפוש: מקום, צוות, הערה" aria-label="חיפוש ביומן"></label>
-      <select id="f-year" aria-label="שנה"></select>
-      <select id="f-month" aria-label="חודש"></select>
-    </div>
-    <p class="hint" id="list-sum" role="status"></p>
-    <div class="trips" id="trips"></div>
-  </section>
 
   <!-- ייבוא: קובץ → בדיקה → בחירה → הוספה -->
   <section class="card panel hidden" id="import-panel" aria-labelledby="imp-title">
@@ -102,16 +84,40 @@
   <section class="card panel hidden" id="manual-panel" aria-labelledby="man-title">
     <div class="panel-h"><h2 class="sec-h" id="man-title">הוספת הפלגה ידנית</h2><button class="icon-btn" data-close aria-label="סגור"><span data-ico="x" data-s="18"></span></button></div>
     <div class="fields">
-      <label>יציאה<input type="datetime-local" id="m-start"></label>
-      <label>סיום<input type="datetime-local" id="m-end"></label>
-      <label>נמל יציאה<select id="m-from"></select></label>
-      <label>דרך (לא חובה)<select id="m-via"></select></label>
-      <label>נמל סיום<select id="m-to"></select></label>
-      <label>מרחק כולל (מייל)<input type="number" inputmode="decimal" step="0.1" min="0" id="m-nm" placeholder="לא חובה"></label>
-      <label class="wide">שם המסלול<input id="m-label" placeholder="למשל: הרצליה – לרנקה – הרצליה" maxlength="200"></label>
+      <div class="wide"><span class="lbl">תאריך</span>
+        <div class="date-quick"><input type="date" id="m-date" aria-label="תאריך היציאה"><button type="button" class="chip-btn" data-day="0">היום</button><button type="button" class="chip-btn" data-day="1">אתמול</button></div></div>
+      <label>שעת יציאה<input type="time" id="m-t0"></label>
+      <label>שעת חזרה<input type="time" id="m-t1"></label>
+      <label class="check wide"><input type="checkbox" id="m-multi"> החזרה הייתה ביום אחר</label>
+      <label class="hidden" id="m-end-date-l">תאריך החזרה<input type="date" id="m-end-date"></label>
+      <div class="port-f"><label for="m-from">נמל יציאה</label><select id="m-from" data-pf="from"></select><input id="m-from-o" class="hidden" placeholder="שם הנמל" maxlength="60" aria-label="שם נמל היציאה"></div>
+      <div class="port-f"><label for="m-to">נמל סיום</label><select id="m-to" data-pf="to"></select><input id="m-to-o" class="hidden" placeholder="שם הנמל" maxlength="60" aria-label="שם נמל הסיום"></div>
+      <details class="wide opt"><summary>עצירה בדרך (לא חובה)</summary>
+        <div class="port-f"><select id="m-via" data-pf="via" aria-label="עצירה בדרך"></select><input id="m-via-o" class="hidden" placeholder="שם הנמל" maxlength="60" aria-label="שם נמל העצירה"></div></details>
+      <label>מרחק כולל (מייל ימי)<input type="number" inputmode="decimal" step="0.1" min="0" id="m-nm" placeholder="לא חובה"></label>
+      <label>שם המסלול<input id="m-label" placeholder="למשל: הרצליה – לרנקה – הרצליה" maxlength="200"></label>
     </div>
     <div class="j-actions"><button type="button" class="btn primary" id="m-add">הוסף הפלגה</button></div>
     <p class="msg" id="m-msg" role="status"></p>
+  </section>
+
+  <!-- יומן מלא -->
+  <section id="full" class="hidden">
+    <div class="j-head">
+      <h1>יומן הפלגות</h1>
+      <div class="j-actions">
+        <button class="btn" data-open="import"><span data-ico="upload" data-s="18"></span>ייבוא</button>
+        <button class="btn" data-open="manual"><span data-ico="plus" data-s="18"></span>הוספה ידנית</button>
+      </div>
+    </div>
+    <section class="card" id="summary-sec" aria-label="סיכום"></section>
+    <div class="j-filter">
+      <label class="j-search"><span data-ico="search" data-s="18"></span><input type="search" id="q" placeholder="חיפוש: מקום, צוות, הערה" aria-label="חיפוש ביומן"></label>
+      <select id="f-year" aria-label="שנה"></select>
+      <select id="f-month" aria-label="חודש"></select>
+    </div>
+    <p class="hint" id="list-sum" role="status"></p>
+    <div class="trips" id="trips"></div>
   </section>
 
   <details class="card more hidden" id="deleted-sec"><summary>נמחקו לאחרונה</summary><div id="deleted-list"></div></details>
@@ -128,15 +134,16 @@
       <p class="hint" id="last-backup"></p>
       <h3 class="h3">יומן מודפס וטבלה</h3>
       <div class="j-actions"><button class="btn" id="print"><span data-ico="copy" data-s="18"></span>הדפסה / PDF</button><button class="btn" id="csv"><span data-ico="arrow-down" data-s="18"></span>טבלה לאקסל (CSV)</button></div>
+      <p class="hint" style="margin:0.4rem 0 0"><a href="journal.html?demo" id="demo-link">פתח יומן לדוגמה</a> – כדי לראות איך נראה יומן מלא. נשמר בנפרד ולא נוגע ביומן שלך.</p>
     </div>
   </details>
 </main>
 </div>
 <div id="print-area" aria-hidden="true"></div>
 <script src="lib/leaflet.js"></script>
-<script src="icons.js?v=6.1"></script>
-<script src="core.js?v=6.1"></script>
-<script src="timeline-parse.js?v=6.1"></script>
-<script src="journal.js?v=6.1"></script>
+<script src="icons.js?v=6.2"></script>
+<script src="core.js?v=6.2"></script>
+<script src="timeline-parse.js?v=6.2"></script>
+<script src="journal.js?v=6.2"></script>
 </body>
 </html>

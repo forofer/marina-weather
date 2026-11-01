@@ -275,7 +275,10 @@ function miniPath(p, W = 88, H = 56) {
 }
 
 /* ===================== יומן: שמירה מקומית ===================== */
-const JOURNAL_KEY = 'journal_v1';
+// מצב הדגמה (?demo): יומן לדוגמה בנפרד – לא נוגע ביומן האישי
+const DEMO = typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo');
+const JOURNAL_KEY = DEMO ? 'journal_demo' : 'journal_v1';
+const BAD_FIX = new WeakSet();   // רשומות שהתיקון שלהן נותן טווח זמן לא תקין (התיקון הוסר)
 const ROLE_NONE = 'לא צוין';
 function migrateJournal(j) {
   if (!j || !Array.isArray(j.trips)) j = { trips: [] };
@@ -310,7 +313,14 @@ function normTrip(t) {
   if (n.safety) notes.safety = true;
   const fx = t.fix && typeof t.fix === 'object' ? t.fix : null;
   const fix = fx ? Object.fromEntries(Object.entries({ label: str(fx.label, 200), note: str(fx.note, 500), start: iso(fx.start), end: iso(fx.end), nm: +fx.nm > 0 ? Math.round(+fx.nm * 10) / 10 : null, est: fx.est ? true : null }).filter(([, v]) => v != null && v !== '')) : null;
-  const ports = t.ports && typeof t.ports === 'object' ? Object.fromEntries(['from', 'via', 'to'].map(k => [k, portByName(t.ports[k]) ? t.ports[k] : null]).filter(([, v]) => v)) : null;
+  // נמל: מהרשימה, או שם חופשי (עד 60 תווים)
+  const ports = t.ports && typeof t.ports === 'object' ? Object.fromEntries(['from', 'via', 'to'].map(k => [k, typeof t.ports[k] === 'string' && t.ports[k].trim() ? t.ports[k].trim().slice(0, 60) : null]).filter(([, v]) => v)) : null;
+  // טווח הזמן אחרי התיקון חייב להיות תקין – אחרת התיקון של הזמנים מוסר והרשומה מסומנת
+  let badFix = false;
+  if (fix && (fix.start || fix.end)) {
+    const es = tms(fix.start || start), ee = tms(fix.end || end);
+    if (!(ee > es) || ee - es > MAX_DAYS * 86400000) { delete fix.start; delete fix.end; badFix = true; }
+  }
   const out = {
     id: str(t.id, 80) || start, start, end, source: ['manual', 'plan', 'google-timeline'].includes(t.source) ? t.source : 'google-timeline',
     type: t.type ? normType(t.type) : undefined, prob: Number.isFinite(+t.prob) && t.prob != null ? +t.prob : (Number.isFinite(+t.probability) && t.probability != null ? +t.probability : null),
@@ -325,6 +335,7 @@ function normTrip(t) {
     deleted: !!t.deleted, deletedAt: t.deleted ? (iso(t.deletedAt) || undefined) : undefined
   };
   Object.keys(out).forEach(k => out[k] === undefined && delete out[k]);
+  if (badFix) BAD_FIX.add(out);
   return out;
 }
 // הפלגה מקובץ Google → רשומת יומן

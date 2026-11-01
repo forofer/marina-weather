@@ -192,7 +192,7 @@ const clipped = p => p.evaluate(() => {
     const tag = variant === 'ens' ? ' (תרחישים)' : ' (Open-Meteo)';
     // 10:00 → ארבע השעות הבאות (10–14): גשם קל 11:00–13:00
     const rt = await txt(p, '#hour-card .rain .rt');
-    ok(/גשם קל צפוי בין 11:00 ל-13:00/.test(rt) && /הסתברות מרבית בשעה בודדת: 80%/.test(rt), 'סיכום: מתי, עוצמה והסתברות מרבית בשעה בודדת' + tag, rt);
+    ok(/גשם קל צפוי, 11:00–13:00/.test(rt.replace(/[\u2066\u2069]/g, '')), 'סיכום: מתי ועוצמה; "צפוי" רק בהסתברות גבוהה' + tag, rt);
     await p.click('#hour-card .rain summary'); await p.waitForTimeout(100);
     const det = await txt(p, '#hour-card .rain ul');
     ok(/כמות מצטברת 2.3 מ"מ/.test(det) && /1.5 מ"מ/.test(det) && (variant === 'ens' ? /תרחישים/.test(det) : /Open-Meteo/.test(det)), 'פירוט: כמות מצטברת, השעה הגשומה ביותר ומקור ההסתברות' + tag, det);
@@ -203,12 +203,12 @@ const clipped = p => p.evaluate(() => {
     const pr = await txt(p, '#p-result .rain:not(.after) .rt');
     ok(pr === rt, 'התכנון מציג בדיוק אותה הודעת גשם כמו הסיכום' + tag, `${pr} | ${rt}`);
     const pa = await txt(p, '#p-result .rain.after .rt');
-    ok(/^אחרי החזרה: גשם בינוני צפוי בין 15:00 ל-16:00/.test(pa), 'גשם אחרי החזרה – הערה נפרדת, עם ניסוח ברור' + tag, pa);
+    ok(/^אחרי החזרה: (גשם בינוני צפוי|אפשרות לגשם בינוני|גשם בינוני לפי התחזית), 15:00–16:00/.test(pa.replace(/[\u2066\u2069]/g, '')), 'גשם אחרי החזרה – הערה נפרדת, עם ניסוח ברור' + tag, pa);
     ok(/מעילי גשם/.test(await txt(p, '.checklist')), 'רשימת ההכנות כוללת ציוד גשם' + tag);
     await p.evaluate(() => { window.__shared = ''; navigator.clipboard.writeText = t => { window.__shared = t; return Promise.resolve(); }; });
     await p.click('#p-copy'); await p.waitForTimeout(150);
     const sh = await p.evaluate(() => window.__shared);
-    ok(sh.includes(rt.replace(/[\u2066\u2069]/g, '')) && /אחרי החזרה: גשם בינוני/.test(sh), 'טקסט השיתוף כולל את אותה הודעה' + tag, sh);
+    ok(sh.includes(rt.replace(/[\u2066\u2069]/g, '')) && /אחרי החזרה: (אפשרות ל)?גשם בינוני/.test(sh), 'טקסט השיתוף כולל את אותה הודעה' + tag, sh);
     // הפלגה יבשה: אין שורת גשם בשיתוף ואין כרטיס גשם
     await p.selectOption('#p-from', '17'); await p.selectOption('#p-to', '20'); await p.waitForTimeout(250);
     ok(!(await p.$('#p-result .rain:not(.after)')), 'הפלגה יבשה: אין כרטיס גשם' + tag);
@@ -223,7 +223,7 @@ const clipped = p => p.evaluate(() => {
     ok(!(await p.$('#hour-card .rain')) && !/לא צפוי גשם|ללא גשם/.test(await txt(p, 'body')), 'שעה יבשה: אין שורת גשם ואין הודעות "לא צפוי גשם"');
     await p.click('.day-tab[data-date="2026-10-31"]'); await p.waitForTimeout(200);
     const st = await txt(p, '#hour-card .rain.storm .rt');
-    ok(/סופת רעמים צפויה בין 11:00 ל-12:00/.test(st), 'סופת רעמים עם מעט משקעים – התרעה מובחנת', st);
+    ok(/סופת רעמים/.test(st) && /11:00–12:00/.test(st.replace(/[\u2066\u2069]/g, '')), 'סופת רעמים עם מעט משקעים – התרעה מובחנת', st);
     await p.click('.hr[data-h="16"]'); await p.waitForTimeout(200);
     ok(/אין נתוני גשם/.test(await txt(p, '#hour-card .rain-miss')) && !(await p.$('#hour-card .rain')), 'נתוני גשם חסרים: הודעה שקטה, לא "יבש"');
     await p.click('#view-table'); await p.waitForTimeout(200);
@@ -290,6 +290,58 @@ const clipped = p => p.evaluate(() => {
     await p.click('#sea-toggle'); await p.waitForTimeout(150);
     ok(await seaRows() === 3, '"הצג פירוט גלים" פותח כיוון, גלי רוח וסוול');
     ok(/כל היום/.test(await txt(p, '#summary')), 'בסיכום הנתונים כתוב שזה היום כולו');
+    await ctx.close();
+  }
+
+  console.log('מסע משתמש: יום עתידי → שעה → תכנון → חלופות → נתונים → מפה → יומן → חזרה');
+  {
+    const SM = require('./mock-sea.js');
+    const { p, ctx, errs } = await open(b, { data: SM, seaCharacter: true });
+    await p.evaluate(() => localStorage.setItem('plan_v1', JSON.stringify({ date: '2026-10-30', from: 9, to: 12, course: '' })));
+    await p.reload(); await p.waitForTimeout(900);
+    const day = '2026-10-31';
+    await p.click(`.day-tab[data-date="${day}"]`); await p.waitForTimeout(200);
+    await p.click('.hr[data-h="11"]'); await p.waitForTimeout(150);
+    ok(/11:00/.test(await txt(p, '#hc-title')) && /11:00/.test(await txt(p, '.trend-read')), 'נבחרו יום ושעה; הגרף מציג את ערכי השעה');
+    await p.click('#view-plan'); await p.waitForTimeout(300);
+    ok(/מוצגת תכנית שמורה/.test(await txt(p, '#p-result')), 'תכנון: מוצגת הודעה שהתכנית השמורה היא ליום אחר');
+    ok(await p.$eval('#p-date', e => e.value) === '2026-10-30', 'התכנית השמורה לא נדרסה בשקט');
+    await p.click('#p-use-sel'); await p.waitForTimeout(300);
+    ok(await p.$eval('#p-date', e => e.value) === day && !/מוצגת תכנית שמורה/.test(await txt(p, '#p-result')), '"תכנן את … שבחרת" עובר ליום שנבחר');
+    // תכנית ביום המאתגר: חלופות באור יום, ואופציה ללילה
+    await p.selectOption('#p-date', '2026-10-30'); await p.selectOption('#p-from', '10'); await p.selectOption('#p-to', '14'); await p.waitForTimeout(300);
+    const title = await txt(p, '#p-result .dc-title');
+    ok(!/אפשר לצאת – ים קשה/.test(title), 'אין "אפשר לצאת – ים קשה"', title);
+    const alts = await p.$$eval('#alts-box .alt', x => x.map(e => e.textContent));
+    ok(alts.every(a => !/הפלגת לילה|חלק בחושך/.test(a)), 'חלופות ברירת מחדל: באור יום בלבד', alts.join(' | '));
+    ok(alts.every(a => /במקום|בתוך הספים/.test(a)), 'כל חלופה מסבירה למה היא עדיפה', alts.join(' | '));
+    await p.click('#alts-box summary'); await p.check('#alt-night'); await p.waitForTimeout(300);
+    const alts2 = await p.$$eval('#alts-box .alt', x => x.map(e => e.textContent));
+    ok(await p.$eval('#alts-box', d => d.open) && alts2.every(a => !/(0[0-4]|2[1-3]):00–/.test(a) || /הפלגת לילה|חלק בחושך/.test(a)), 'עם "גם בלילה": חלופות בחושך מסומנות', alts2.join(' | '));
+    // סדר המידע בתכנון במובייל: מסקנה → מדדים → התרעות/שמירה → חלופות
+    const order = await p.evaluate(() => ['.dc-title', '.p-metrics', '#p-save', '#alts-box'].map(q => document.querySelector(q)?.getBoundingClientRect().top));
+    ok(order.every((v, i) => i === 0 || v > order[i - 1]), 'סדר בתכנון: מסקנה, מדדים, שמירה, חלופות', JSON.stringify(order));
+    ok(order[1] < 844, 'המדדים במסך הראשון', String(order[1]));
+    // נתונים ומפה
+    await p.click('#view-table'); await p.waitForTimeout(250);
+    ok(/שבת|31\/10/.test(await txt(p, '#summary')), 'הנתונים מציגים את היום שנבחר');
+    await p.click('#view-windy'); await p.waitForTimeout(250);
+    ok(/לא מציגה את/.test(await txt(p, '#map-note-s')), 'במפה מודגש שהזמן שלה עצמאי');
+    await p.click('.map-bar .seg[data-overlay="waves"]'); await p.waitForTimeout(200);
+    const wrapH = await p.$eval('#windy-wrap', e => e.getBoundingClientRect().height);
+    ok(wrapH < 320 && /בנקודה שלנו/.test(await txt(p, '#windy-ext')), 'שכבת גלים: כרטיס קומפקטי עם נתוני הגלים המקומיים', String(wrapH));
+    await p.click('.map-bar .seg[data-overlay="wind"]'); await p.waitForTimeout(150);
+    // יומן וחזרה
+    await p.click('#view-brief'); await p.waitForTimeout(150);
+    await p.click('#view-journal'); await p.waitForTimeout(300);
+    await p.click('#view-tabs a[href="index.html#brief"]'); await p.waitForTimeout(900);
+    ok(await p.$eval('.day-tab.active', e => e.dataset.date) === day && /11:00/.test(await txt(p, '#hc-title')), 'אחרי היומן: היום והשעה שנבחרו נשמרו');
+    // מסרים עקביים: כשהים קשה – אין משפט מרגיע
+    await p.click('.day-tab[data-date="2026-10-30"]'); await p.waitForTimeout(150); await p.click('.hr[data-h="12"]'); await p.waitForTimeout(150);
+    const cap = await txt(p, '.hc-cap'), dl = await txt(p, '#hour-card .demand');
+    ok(/המחשה בלבד/.test(cap), 'ליד האיור: "המחשה בלבד"');
+    ok(!(/מאתגר|קשה/.test(dl) && /נסבל|תנועה קלה|כמעט בלי תנועה/.test(cap)), 'האיור לא מרגיע כשהים מאתגר/קשה', `${dl} | ${cap}`);
+    ok(errs.length === 0, 'אין שגיאות JS במסע', errs.join(' | '));
     await ctx.close();
   }
 

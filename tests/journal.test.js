@@ -141,7 +141,8 @@ function sailFile(trips) {
   { marineFail = true;
     await reset(); await importFile(tmp('c.json', sailFile([['2026-09-02', '15:00', '17:00']]))); await apply();
     await p.click('details.jtrip summary'); await p.waitForSelector('.wx-tab', { timeout: 5000 });
-    ok(/הערכה חלקית/.test(await p.textContent('.t-body .demand')) && /גלים – \(אין נתונים\)/.test(await p.textContent('.wx-sum')), 'בלי גלים: "הערכה חלקית"');
+    ok(/אין מספיק נתונים להערכת נוחות הים/.test(await p.textContent('.t-body .demand')) && !/נוח\b|ים נוח/.test(await p.textContent('.t-body .demand')) && /גלים – \(אין נתונים\)/.test(await p.textContent('.wx-sum')), 'בלי גלים: "אין מספיק נתונים להערכת נוחות הים", לא "נוח"');
+    ok(!(await p.$$eval('.wx-tab tbody td:last-child', x => x.some(t => /נוח/.test(t.textContent)))), 'בטבלה: "?" ולא "נוח*"');
     await p.click('[data-feel="3"]'); await p.waitForTimeout(150);
     ok(!/התחושה שלך מול נתוני המודלים/.test(await p.textContent('#summary-sec')), 'הערכה חלקית לא נכנסת לתובנות');
     const pd = await p.evaluate(() => seaDemand({ wind: 5, gust: 7, wave: null }));
@@ -157,15 +158,23 @@ function sailFile(trips) {
     await p.click('[data-retry-save]'); await p.waitForTimeout(150);
     ok(await p.isHidden('#save-error') && (await J()).trips[0].notes.text === 'הערה חשובה', '"נסה שוב" שומר');
     await p.evaluate(() => { Storage.prototype.setItem = function () { throw new Error('blocked'); }; });
-    await p.click('#full [data-open="manual"]'); await p.fill('#m-start', '2026-08-01T10:00'); await p.fill('#m-end', '2026-08-01T12:00'); await p.click('#m-add'); await p.waitForTimeout(150);
+    await p.click('#full [data-open="manual"]'); await p.fill('#m-date', '2026-08-01'); await p.fill('#m-t0', '10:00'); await p.fill('#m-t1', '12:00'); await p.click('#m-add'); await p.waitForTimeout(150);
     await p.evaluate(() => { Storage.prototype.setItem = window.__set; });
     ok(await p.isVisible('#save-error') && !(await J()).trips.some(t => t.source === 'manual'), 'אחסון חסום: ההוספה לא מוצגת כאילו הצליחה'); await p.click('#manual-panel [data-close]'); }
 
   console.log('הפלגה ידנית, כלי שיט ושדות יומן');
   await reset();
   await p.click('#empty [data-open="manual"]');
-  await p.fill('#m-start', '2026-05-28T08:00'); await p.fill('#m-end', '2026-06-02T18:00');
-  await p.selectOption('#m-via', 'מרינה לרנקה (קפריסין)'); await p.fill('#m-label', 'הרצליה – לרנקה – הרצליה');
+  await p.click('#manual-panel [data-day="0"]');
+  ok(/^\d{4}-\d\d-\d\d$/.test(await p.inputValue('#m-date')) && await p.inputValue('#m-t0') === '', '"היום" ממלא תאריך בלבד');
+  await p.fill('#m-date', '2026-05-28'); await p.fill('#m-t0', '18:00'); await p.fill('#m-t1', '08:00');
+  await p.click('#m-add'); await p.waitForTimeout(100);
+  ok(/אחרי חצות/.test(await p.textContent('#m-msg')), 'חזרה לפני יציאה באותו יום – הסבר על חצות');
+  await p.fill('#m-t0', '08:00'); await p.fill('#m-t1', '18:00');
+  await p.check('#m-multi');
+  ok(await p.inputValue('#m-end-date') === '2026-05-28', 'יום אחר: מוצע אותו תאריך, בלי שעה משוערת');
+  await p.fill('#m-end-date', '2026-06-02');
+  await p.click('#manual-panel details.opt summary'); await p.selectOption('#m-via', 'מרינה לרנקה (קפריסין)'); await p.fill('#m-label', 'הרצליה – לרנקה – הרצליה');
   await p.click('#m-add'); await p.waitForTimeout(300);
   let sm = T(await p.textContent('details.jtrip summary'));
   ok(/לרנקה/.test(sm) && /מרחק לא הוזן/.test(sm) && /5 ימים/.test(sm) && /ש׳ לילה/.test(sm), 'בלי מרחק – "מרחק לא הוזן", ימים ושעות לילה', sm);
@@ -181,7 +190,7 @@ function sailFile(trips) {
   await p.fill('[data-dt="end"]', '2026-05-27T10:00'); await p.waitForTimeout(150);
   ok(/הסיום חייב להיות אחרי היציאה/.test(await p.textContent('[data-fix-msg]')) && (await J()).trips[0].end.startsWith('2026-06-02'), 'סיום לפני יציאה – לא נשמר');
   await p.fill('[data-fix="nm"]', '330'); await p.dispatchEvent('[data-fix="nm"]', 'change'); await p.waitForTimeout(200);
-  ok(/330\.0 מייל/.test(T(await p.textContent('details.jtrip summary'))), 'מרחק שהוזן ביד');
+  ok(/330\.0 מייל ימי/.test(T(await p.textContent('details.jtrip summary'))), 'מרחק שהוזן ביד, ב"מייל ימי"');
   // כלי שיט
   await p.click('#more-sec summary'); await p.click('#v-add'); await p.fill('#vessels [data-vf="name"]', 'סירה א'); await p.waitForTimeout(500);
   ok(/שייך/.test(await p.textContent('#vessels')), 'הצעה לשייך הפלגות בלי כלי שיט (לא אוטומטי)');
@@ -255,6 +264,22 @@ function sailFile(trips) {
     ok(await p.$eval('details.jtrip[open] [data-box="fix"]', d => d.open), 'אפשר לתקן את השעות בפועל מיד');
     await p.reload(); await p.waitForTimeout(150);
     ok(await p.isHidden('#plans-sec'), 'לא מוצעת שוב'); }
+
+  console.log('תיקון זמנים שגוי בגיבוי, נמל חופשי, יומן לדוגמה');
+  { const bad = { format: 'marina-weather-journal/2', trips: [{ id: 'x1', start: '2026-03-03T08:00:00Z', end: '2026-03-03T10:00:00Z', source: 'manual', fix: { start: '2026-03-03T11:00:00Z', end: '2026-03-03T09:00:00Z' }, ports: { from: 'מרינה הרצליה' } }] };
+    await importFile(tmp('badfix.json', bad));
+    const R2 = await rows();
+    ok(R2.length === 1 && /תיקון הזמנים בקובץ לא תקין/.test(R2[0].status) && /בלי תיקון הזמנים/.test(await p.textContent('#imp-list select')), 'תיקון שגוי (סוף לפני התחלה) מסומן בתצוגה המקדימה', JSON.stringify(R2));
+    await p.click('#import-panel [data-close]');
+    await p.click('#full [data-open="manual"]'); await p.fill('#m-date', '2026-02-02'); await p.fill('#m-t0', '09:00'); await p.fill('#m-t1', '13:00');
+    await p.selectOption('#m-to', '__other'); ok(await p.isVisible('#m-to-o'), '"נמל אחר" פותח שדה טקסט');
+    await p.fill('#m-to-o', 'מעגן מיכאל'); await p.click('#m-add'); await p.waitForTimeout(200);
+    ok(/מעגן מיכאל/.test(await p.textContent('#trips')), 'נמל בשם חופשי נשמר ומוצג');
+    const before2 = await p.evaluate(() => localStorage.getItem('journal_v1'));
+    await p.goto(url('journal.html') + '?demo'); await p.waitForTimeout(400);
+    ok(await p.isVisible('#demo-banner') && await p.$$eval('details.jtrip', x => x.length) >= 20, 'יומן לדוגמה מלא');
+    ok(await p.evaluate(() => localStorage.getItem('journal_v1')) === before2, 'היומן האישי לא השתנה');
+    await p.goto(url('journal.html')); await p.waitForTimeout(200); }
 
   console.log('קבצים לא תקינים והגנה מקוד');
   await importFile(fx('timeline-bad.json'));

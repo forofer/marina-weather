@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=6.1">
+  <link rel="stylesheet" href="app.css?v=6.2">
 </head>
 <body>
 <div class="app">
@@ -108,19 +108,20 @@
       <div class="seg-group" role="radiogroup" aria-label="שכבת מפה">
         <button class="seg active" data-overlay="wind" role="radio" aria-checked="true"><span data-ico="wind" data-s="16"></span>רוח</button>
         <button class="seg" data-overlay="gust" role="radio" aria-checked="false"><span data-ico="gauge" data-s="16"></span>משבים</button>
-        <button class="seg" data-overlay="waves" role="radio" aria-checked="false"><span data-ico="waves" data-s="16"></span>גלים</button>
-        <button class="seg" data-overlay="swell1" role="radio" aria-checked="false"><span data-ico="navigation" data-s="16"></span>סוול</button>
+        <button class="seg" data-overlay="waves" role="radio" aria-checked="false" title="גלים – נפתח באתר Windy"><span data-ico="waves" data-s="16"></span>גלים</button>
+        <button class="seg" data-overlay="swell1" role="radio" aria-checked="false" title="סוול – נפתח באתר Windy"><span data-ico="navigation" data-s="16"></span>סוול</button>
       </div>
       <a class="btn sm" id="windy-open" href="https://www.windy.com/32.165/34.785?32.165,34.785,10" target="_blank" rel="noopener" aria-label="פתח את השכבה הזו באתר Windy"><span data-ico="external-link" data-s="16"></span><span class="wo-t">פתח ב-Windy</span></a>
     </div>
     <details class="map-note">
-      <summary><span data-ico="clock" data-s="16"></span>זמן המפה נבחר בנפרד</summary>
+      <summary><span data-ico="clock" data-s="16"></span><span id="map-note-s">זמן המפה נבחר בנפרד</span></summary>
       <p>המפה של Windy מציגה את התחזית לשעה הנוכחית, ולא מסונכרנת עם היום והשעה שבחרתם במסכים האחרים. אפשר לבחור זמן בסרגל שבתחתית המפה. ב-Windy הסוול נקרא "גיבוע". לגלילת הדף – גוללים מחוץ למפה.</p>
     </details>
     <div class="windy-wrap" id="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe>
       <div class="windy-ext hidden" id="windy-ext" role="status">
         <span class="we-ico" data-ico="waves" data-s="28"></span>
         <p class="we-t" id="windy-ext-t">שכבת הגלים זמינה באתר Windy</p>
+        <p class="we-d" id="windy-ext-d"></p>
         <a class="btn primary" id="windy-ext-a" href="https://www.windy.com/" target="_blank" rel="noopener"><span data-ico="external-link" data-s="18"></span><span id="windy-ext-l">פתח ב-Windy</span></a>
         <details class="we-why"><summary>למה?</summary><p class="we-s">Windy לא מציג את השכבה הזו באופן אמין בתוך אתר אחר – היא מתחלפת לרוח. נתוני הגלים לנקודה שלנו נמצאים גם במסך "נתונים".</p></details>
       </div></div>
@@ -179,10 +180,10 @@
   </footer>
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=6.1"></script>
-  <script src="core.js?v=6.1"></script>
-  <script src="data.js?v=6.1"></script>
-  <script src="app.js?v=6.1"></script>
+  <script src="icons.js?v=6.2"></script>
+  <script src="core.js?v=6.2"></script>
+  <script src="data.js?v=6.2"></script>
+  <script src="app.js?v=6.2"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

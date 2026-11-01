@@ -134,7 +134,7 @@ function rowsHtml(rows, multi) {
     ${show.map(r => { const d = seaDemand(r); const ms = Object.values(r.models || {}).map(m => m.wind).filter(v => v != null);
       return `<tr><td>${multi ? `${+r.t.slice(8, 10)}/${+r.t.slice(5, 7)} ` : ''}${r.t.slice(11, 16)}</td><td>${fmt(r.wind)}${ms.length > 1 ? `<br><small>${fmt(Math.min(...ms))}–${fmt(Math.max(...ms))}</small>` : ''}</td><td>${fmt(r.gust)}</td><td>${r.wave != null ? Math.round(r.wave * 100) : '–'}</td>
         <td>${r.sw != null ? `${Math.round(r.sw * 100)} ${from8(r.swDir)}` : '–'}<br><small>${r.ww != null ? `${Math.round(r.ww * 100)} ${from8(r.wwDir)}` : ''}</small></td>
-        <td class="d${d && !d.partial ? d.lvl : 0}">${d ? FEEL[d.lvl] + (d.partial ? '*' : '') : '–'}</td></tr>`; }).join('')}
+        <td class="d${d && !(d.partial && d.lvl < 2) ? d.lvl : 0}">${!d || (d.partial && d.lvl < 2) ? '?' : FEEL[d.lvl] + (d.partial ? '*' : '')}</td></tr>`; }).join('')}
     </tbody></table></div>`;
 }
 function wxSummary(rows) {
@@ -144,8 +144,9 @@ function wxSummary(rows) {
   const rain = rows.slice(1).reduce((s, r) => s + (r.rain || 0), 0);
   const sum = [`רוח ${ws.length ? `${fmt(Math.min(...ws))}–${fmt(Math.max(...ws))} קשר (כל המודלים)` : '– (אין נתונים)'}`, `משבים עד ${gs.length ? fmt(Math.max(...gs)) : '–'}`,
     `גלים ${wv.length ? 'עד ' + Math.round(Math.max(...wv) * 100) + ' ס״מ' : '– (אין נתונים)'}`, rain >= 0.1 ? `גשם ${fmt(rain, 1)} מ"מ` : null].filter(Boolean).join(' · ');
-  const dmHtml = !dm ? '<p class="src">אין מספיק נתונים להערכת מצב הים.</p>'
-    : `<div class="demand dm${dm.partial ? 0 : dm.lvl}"><span class="dm-h">${ico('waves', 18)}<b>${dm.partial ? `הערכה חלקית (חסרים נתוני ${dm.missing.join(' ו')}): לפחות ${dm.t}` : `אופי הים לפי המודלים: ${dm.t}`}</b>${!dm.partial && dm.d ? ` – ${dm.d}` : ''}</span>${dm.why.length ? `<span class="dm-w">${dm.why.join(' · ')}</span>` : ''}</div>`;
+  // חסר מידע: לא אומרים "נוח". אם נתון ידוע כבר מראה סכנה – אומרים אותה במפורש
+  const dmHtml = !dm || (dm.partial && dm.lvl < 2) ? `<div class="demand dm0"><span class="dm-h">${ico('waves', 18)}<b>אין מספיק נתונים להערכת נוחות הים</b></span><span class="dm-w">${dm ? `חסרים נתוני ${dm.missing.join(' ו')}` : 'חסרים נתונים'}${dm && dm.why.length ? ' · ידוע: ' + dm.why.join(' · ') : ''}</span></div>`
+    : `<div class="demand dm${dm.lvl}"><span class="dm-h">${ico('waves', 18)}<b>אופי הים לפי המודלים: ${dm.t}</b>${dm.partial ? ` – לפי הנתונים החלקיים (חסרים ${dm.missing.join(' ו')})` : dm.d ? ` – ${dm.d}` : ''}</span>${dm.why.length ? `<span class="dm-w">${dm.why.join(' · ')}</span>` : ''}</div>`;
   return `<p class="wx-sum">${sum}</p>${dmHtml}`;
 }
 function wxHtml(trip) {
@@ -155,7 +156,7 @@ function wxHtml(trip) {
   const multi = wx.rows.length > 30;
   const np = (wx.points || [1]).length;
   return `${wxSummary(wx.rows)}${rowsHtml(wx.rows, multi)}
-    <p class="src">נתוני מודלים מהארכיון של Open-Meteo – לא מדידה, ולא בהכרח התחזית שנראתה לפני היציאה. ${np > 1 ? `${np} נקודות לאורך המסלול; כל שעה לפי הנקודה הקרובה למיקום המשוער (קירוב).` : 'נקודה מייצגת אחת במרכז המסלול – לא לאורך כולו.'} ${multi ? 'מוצגת שורה כל 3 שעות; הסיכום לפי כל השעות. ' : ''}${tripGaps(trip).length && !trip.gapAtSea ? 'שעות הפער שלא נרשם לא נכללות. ' : ''}* הערכה חלקית – חסרים נתונים.</p>`;
+    <p class="src">נתוני מודלים מהארכיון של Open-Meteo – לא מדידה, ולא בהכרח התחזית שנראתה לפני היציאה. ${np > 1 ? `${np} נקודות לאורך המסלול; כל שעה לפי הנקודה הקרובה למיקום המשוער (קירוב).` : 'נקודה מייצגת אחת במרכז המסלול – לא לאורך כולו.'} ${multi ? 'מוצגת שורה כל 3 שעות; הסיכום לפי כל השעות. ' : ''}${tripGaps(trip).length && !trip.gapAtSea ? 'שעות הפער שלא נרשם לא נכללות. ' : ''}? = אין מספיק נתונים · * = לפי נתונים חלקיים.</p>`;
 }
 function planFcHtml(t) {
   const f = t.planFc; if (!f) return '';
@@ -206,7 +207,7 @@ function initMap(el, trip, showRaw) {
 /* ===================== רשימה ===================== */
 const routeTxt = (t, s) => (t.fix && t.fix.label) || placeTxt(s);
 const timeRange = t => { const S = tStart(t), E = tEnd(t); return localDate(S) === localDate(E) ? `${fmtTime(S)}–${fmtTime(E)}` : `${fmtTime(S)} – ${fmtShort(E)} ${fmtTime(E)}`; };
-const nmTxt = s => s.nm != null ? `${s.distKind === 'estimated' ? '~' : ''}${s.nm.toFixed(1)} מייל` : 'מרחק לא הוזן';
+const nmTxt = s => s.nm != null ? `${s.distKind === 'estimated' ? '~' : ''}${s.nm.toFixed(1)} מייל ימי` : 'מרחק לא הוזן';
 const SRC_TXT = { 'google-timeline': 'ציר הזמן של Google', manual: 'הוזן ביד', plan: 'מתכנית הפלגה' };
 function feelBadge(t) { const f = t.notes?.feel; return f != null ? `<span class="feel-b f${f}">${FEEL[f]}</span>` : ''; }
 function filtered() {
@@ -259,16 +260,15 @@ function openTrip(d, showRaw) {
   const n = t.notes || {};
   const manual = t.source !== 'google-timeline';
   const ko = keepOpen[t.id] || {};
-  const portOpts = sel => `<option value="">—</option>${PORTS.map(p => `<option${p[0] === sel ? ' selected' : ''}>${esc(p[0])}</option>`).join('')}`;
   const gaps = s.gaps;
   body.innerHTML = `
     <div class="stats">
-      <div class="stat"><div class="k">מרחק</div><div class="v">${s.nm != null ? `${s.nm.toFixed(1)} <small>מייל</small>` : '<small>לא הוזן</small>'}</div><span class="kind">${DIST_KIND[s.distKind]}${s.distKind === 'estimated' && !t.fix?.nm ? ' (מסלול דליל)' : ''}${s.straightNm && s.nm == null ? ` · בקו ישר ${s.straightNm.toFixed(0)}` : ''}</span></div>
+      <div class="stat"><div class="k">מרחק</div><div class="v">${s.nm != null ? `${s.nm.toFixed(1)} <small>מייל ימי</small>` : '<small>לא הוזן</small>'}</div><span class="kind">${DIST_KIND[s.distKind]}${s.distKind === 'estimated' && !t.fix?.nm ? ' (מסלול דליל)' : ''}${s.straightNm && s.nm == null ? ` · בקו ישר ${s.straightNm.toFixed(0)}` : ''}</span></div>
       <div class="stat"><div class="k">משך</div><div class="v">${durTxt(s.durMin)}</div>${gaps.length ? `<span class="kind">${t.gapAtSea ? 'כולל' : 'בלי'} ${durTxt(s.gapMin)} שלא נרשמו</span>` : ''}</div>
       <div class="stat"><div class="k">שעות לילה</div><div class="v">${hrs(s.nightMin)}</div></div>
       <div class="stat"><div class="k">מהירות ממוצעת</div><div class="v">${s.avgKn ? s.avgKn.toFixed(1) : '–'} <small>קשר</small></div></div>
     </div>
-    ${s.fixed && !manual ? `<p class="note-box">${ico('info', 16)}<span><b>תוקן ביד.</b> ${esc(t.fix.note || '')}${t.fix.nm > 0 && s.recNm != null ? ` המפה מראה רק את מה ש-Google רשמה (${s.recNm.toFixed(1)} מייל).` : ''}</span></p>` : ''}
+    ${s.fixed && !manual ? `<p class="note-box">${ico('info', 16)}<span><b>תוקן ביד.</b> ${esc(t.fix.note || '')}${t.fix.nm > 0 && s.recNm != null ? ` המפה מראה רק את מה ש-Google רשמה (${s.recNm.toFixed(1)} מייל ימי).` : ''}</span></p>` : ''}
     ${s.suspicious.length ? `<p class="note-box">${ico('info', 16)}<span>${s.suspicious.length === 1 ? 'נקודה חשודה אחת סוננה' : s.suspicious.length + ' נקודות חשודות סוננו'} – קפיצות חד-פעמיות שלא מתאימות למסלול. <button class="btn quiet" data-raw>${showRaw ? 'הסתר' : 'הצג במפה'}</button> <button class="btn quiet" data-noclean>בטל סינון</button></span></p>` : t.clean === false ? `<p class="note-box">${ico('info', 16)}<span>הסינון בוטל – מוצג המסלול המקורי. <button class="btn quiet" data-doclean>החזר סינון</button></span></p>` : ''}
     <div class="t-map" aria-label="מפת המסלול"></div>
     <p class="src">${manual ? 'הקו המקווקו מחבר בין הנמלים בקו ישר – זה לא המסלול האמיתי.' : `המסלול מציר הזמן של Google.${gaps.length || pieces(s.pts).length > 1 ? ' קו אפור מנוקד = פער שלא נרשם.' : ''}`}</p>
@@ -297,17 +297,15 @@ function openTrip(d, showRaw) {
     <details class="more sub-box" data-box="fix"${ko.fix ? ' open' : ''}><summary>${manual ? 'עריכת זמנים, נמלים ומרחק' : 'תיקון פרטים – כש-Google טעתה או פספסה חלק'}</summary>
       <div class="fields">
         <label class="wide">שם המסלול<input data-fix="label" value="${esc(t.fix?.label)}" placeholder="${esc(placeTxt(s))}" maxlength="200"></label>
-        ${manual ? `<label>נמל יציאה<select data-port="from">${portOpts(t.ports?.from)}</select></label>
-        <label>דרך (לא חובה)<select data-port="via">${portOpts(t.ports?.via)}</select></label>
-        <label>נמל סיום<select data-port="to">${portOpts(t.ports?.to)}</select></label>` : ''}
+        ${manual ? [['from', 'נמל יציאה', ''], ['via', 'עצירה בדרך', '—'], ['to', 'נמל סיום', '']].map(([k, l, e]) => `<div class="port-f"><label>${l}</label><select data-port="${k}">${portOptions(t.ports?.[k], e || (k === 'from' || k === 'to' ? '—' : ''))}</select><input data-port-o="${k}" class="hidden" placeholder="שם הנמל" maxlength="60" aria-label="${l} – שם"></div>`).join('') : ''}
         <label>יציאה<input type="datetime-local" data-dt="start" value="${dtLocal(tStart(t))}"></label>
         <label>סיום<input type="datetime-local" data-dt="end" value="${dtLocal(tEnd(t))}"></label>
-        <label>מרחק כולל (מייל)<input type="number" inputmode="decimal" step="0.1" min="0" data-fix="nm" value="${t.fix?.nm > 0 ? t.fix.nm : ''}" placeholder="${s.recNm != null ? s.recNm.toFixed(1) : 'לא הוזן'}"></label>
+        <label>מרחק כולל (מייל ימי)<input type="number" inputmode="decimal" step="0.1" min="0" data-fix="nm" value="${t.fix?.nm > 0 ? t.fix.nm : ''}" placeholder="${s.recNm != null ? s.recNm.toFixed(1) : 'לא הוזן'}"></label>
         ${manual ? '' : `<label class="wide">מה תוקן<input data-fix="note" value="${esc(t.fix?.note)}" placeholder="למשל: הדרך הלוך לא נרשמה" maxlength="500"></label>`}
         ${gaps.length ? `<label class="check wide"><input type="checkbox" data-gap${t.gapAtSea ? ' checked' : ''}> הייתי בים גם בפער שלא נרשם (${durTxt(s.gapMin)}) – לספור אותו</label>` : ''}
       </div>
       <div class="saved-msg" data-fix-msg role="status"></div>
-      ${!manual && s.recNm != null ? `<div class="j-actions"><button type="button" class="btn" data-fix-rt>הלוך ושוב באותה דרך: ~${(s.recNm * 2).toFixed(1)} מייל</button>${s.fixed ? '<button type="button" class="btn quiet" data-fix-clear>בטל את התיקונים</button>' : ''}</div>` : ''}
+      ${!manual && s.recNm != null ? `<div class="j-actions"><button type="button" class="btn" data-fix-rt>הלוך ושוב באותה דרך: ~${(s.recNm * 2).toFixed(1)} מייל ימי</button>${s.fixed ? '<button type="button" class="btn quiet" data-fix-clear>בטל את התיקונים</button>' : ''}</div>` : ''}
     </details>
     <div class="t-actions"><span></span><button class="btn danger" data-del>${ico('trash-2', 16)}מחק</button></div>`;
   setTimeout(() => { if (body.isConnected) initMap(body.querySelector('.t-map'), t, showRaw); }, 0);
@@ -373,11 +371,18 @@ function openTrip(d, showRaw) {
     if (manual) { t.start = ns; t.end = ne; t.wx = null; touch(t); persist(); keepOpen[t.id] = { ...(keepOpen[t.id] || {}), fix: true }; reopen(t.id); }
     else setFix({ [k]: dtLocal(val) === dtLocal(k === 'start' ? t.start : t.end) ? null : val });
   }));
-  body.querySelectorAll('[data-port]').forEach(sel => sel.addEventListener('change', () => {
-    t.ports = { ...(t.ports || {}), [sel.dataset.port]: sel.value || null };
+  body.querySelectorAll('[data-port]').forEach(sel => {
+    const other = body.querySelector(`[data-port-o="${sel.dataset.port}"]`);
+    wirePort(sel, other);
+    const apply = () => {
+    if (sel.value === OTHER && !other.value.trim()) return;
+    t.ports = { ...(t.ports || {}), [sel.dataset.port]: portVal(sel, other) };
     Object.keys(t.ports).forEach(k => { if (!t.ports[k]) delete t.ports[k]; });
     t.path = portsPath(t.ports); t.wx = null; touch(t); persist(); keepOpen[t.id] = { ...(keepOpen[t.id] || {}), fix: true }; reopen(t.id);
-  }));
+    };
+    sel.addEventListener('change', () => { if (sel.value !== OTHER) apply(); });
+    other.addEventListener('change', apply);
+  });
   body.querySelector('[data-gap]')?.addEventListener('change', e => { t.gapAtSea = e.target.checked || undefined; if (!t.gapAtSea) delete t.gapAtSea; t.wx = null; touch(t); persist(); keepOpen[t.id] = { ...(keepOpen[t.id] || {}), fix: true }; reopen(t.id); });
   body.querySelector('[data-fix-rt]')?.addEventListener('click', () => setFix({ nm: Math.round(s.recNm * 20) / 10, est: true, note: t.fix?.note || 'המרחק הוא אומדן – הלוך ושוב באותה דרך.' }));
   body.querySelector('[data-fix-clear]')?.addEventListener('click', () => { if (t.fix?.start || t.fix?.end) t.wx = null; t.fix = null; touch(t); persist(); reopen(t.id); });
@@ -475,6 +480,7 @@ function buildCands() {
   if (I.kind === 'backup') {
     I.cands = I.trips.map(t => {
       const ex = J.trips.find(x => x.id === t.id);
+      if (ex && BAD_FIX.has(t)) return { t, status: 'תיקון הזמנים בגיבוי לא תקין', cls: 'warn', acts: ['skip', 'replace'], act: 'skip', match: ex };
       if (ex) {
         const a = JSON.stringify({ ...ex, wx: null, updatedAt: null }), b = JSON.stringify({ ...t, wx: null, updatedAt: null });
         if (a === b) return { t, status: 'זהה', cls: '', acts: ['skip'], act: 'skip', match: ex };
@@ -499,6 +505,7 @@ function buildCands() {
 }
 function candFor(t) {
   if (!t) return null;
+  if (BAD_FIX.has(t)) return { t, s: tripStats(t), status: 'תיקון הזמנים בקובץ לא תקין', cls: 'warn', acts: ['add', 'skip'], act: 'add', addLabel: 'הוסף בלי תיקון הזמנים', match: null };
   const c = classifyTrip(J, t);
   const s = tripStats(t);
   const base = { t, s, match: c.match };
@@ -598,18 +605,28 @@ $('imp-apply').addEventListener('click', () => {
 });
 
 /* ===================== הוספה ידנית ===================== */
+// בחירת נמל: מהרשימה, או "נמל אחר" עם שם חופשי
+const OTHER = '__other';
+const portOptions = (sel, empty) => `${empty ? `<option value="">${empty}</option>` : ''}${PORTS.map(p => `<option${p[0] === sel ? ' selected' : ''}>${esc(p[0])}</option>`).join('')}${sel && !portByName(sel) ? `<option selected>${esc(sel)}</option>` : ''}<option value="${OTHER}">נמל אחר…</option>`;
+function wirePort(sel, other) {
+  const sync = () => { other.classList.toggle('hidden', sel.value !== OTHER); if (sel.value === OTHER) other.focus(); };
+  sel.addEventListener('change', sync); sync();
+}
+const portVal = (sel, other) => sel.value === OTHER ? (other.value.trim().slice(0, 60) || null) : (sel.value || null);
 function initManual() {
-  const opts = PORTS.map(p => `<option>${esc(p[0])}</option>`).join('');
-  $('m-from').innerHTML = opts; $('m-to').innerHTML = opts; $('m-via').innerHTML = `<option value="">—</option>${opts}`;
-  $('m-from').value = $('m-to').value = 'מרינה הרצליה';
+  $('m-from').innerHTML = portOptions('מרינה הרצליה'); $('m-to').innerHTML = portOptions('מרינה הרצליה'); $('m-via').innerHTML = portOptions('', '—');
+  ['from', 'to', 'via'].forEach(k => wirePort($('m-' + k), $('m-' + k + '-o')));
+  // היום / אתמול – בוחרים תאריך; שעות לא משלימים מעצמנו
+  document.querySelectorAll('[data-day]').forEach(b => b.addEventListener('click', () => { $('m-date').value = localDate(Date.now() - +b.dataset.day * 86400000); $('m-t0').focus(); }));
+  $('m-multi').addEventListener('change', e => { $('m-end-date-l').classList.toggle('hidden', !e.target.checked); if (e.target.checked && !$('m-end-date').value) $('m-end-date').value = $('m-date').value; });
   $('m-add').addEventListener('click', () => {
     const msg = $('m-msg'); msg.className = 'msg err';
-    const a = $('m-start').value, b = $('m-end').value;
-    if (!a || !b) { msg.textContent = 'צריך תאריך ושעה ליציאה ולסיום.'; return; }
-    const start = localToISO(a.slice(0, 10), a.slice(11, 16)), end = localToISO(b.slice(0, 10), b.slice(11, 16));
-    if (tms(end) <= tms(start)) { msg.textContent = 'הסיום חייב להיות אחרי היציאה.'; return; }
+    const d0 = $('m-date').value, d1 = $('m-multi').checked ? $('m-end-date').value : d0, a = $('m-t0').value, b = $('m-t1').value;
+    if (!d0 || !a || !b || !d1) { msg.textContent = 'צריך תאריך, שעת יציאה ושעת חזרה.'; return; }
+    const start = localToISO(d0, a), end = localToISO(d1, b);
+    if (tms(end) <= tms(start)) { msg.textContent = $('m-multi').checked ? 'הסיום חייב להיות אחרי היציאה.' : 'שעת החזרה לפני שעת היציאה. אם חזרתם אחרי חצות – סמנו "החזרה הייתה ביום אחר".'; return; }
     if (tms(end) - tms(start) > MAX_DAYS * 86400000) { msg.textContent = `הפלגה ארוכה מ-${MAX_DAYS} ימים – בדקו את התאריכים.`; return; }
-    const ports = { from: $('m-from').value, via: $('m-via').value || null, to: $('m-to').value };
+    const ports = { from: portVal($('m-from'), $('m-from-o')), via: portVal($('m-via'), $('m-via-o')), to: portVal($('m-to'), $('m-to-o')) };
     const nm = +$('m-nm').value, label = $('m-label').value.trim();
     const t = normTrip({ id: 'm-' + start, start, end, source: 'manual', ports, path: portsPath(ports), vesselId: J.defaultVessel,
       fix: { label: label || null, nm: nm > 0 ? nm : null }, notes: {} });
@@ -619,7 +636,8 @@ function initManual() {
     touch(t); J.trips.push(t); J.trips.sort((x, y) => tms(y.start) - tms(x.start));
     if (!persist()) { J.trips = J.trips.filter(x => x !== t); return; }
     msg.className = 'msg'; msg.textContent = '';
-    ['m-start', 'm-end', 'm-nm', 'm-label'].forEach(id => { $(id).value = ''; });
+    ['m-date', 'm-t0', 'm-t1', 'm-end-date', 'm-nm', 'm-label', 'm-from-o', 'm-to-o', 'm-via-o'].forEach(id => { $(id).value = ''; });
+    $('m-multi').checked = false; $('m-end-date-l').classList.add('hidden');
     closePanels(); renderAll(); flash('ההפלגה נוספה ✓');
     const d = [...document.querySelectorAll('details.jtrip')].find(x => x.dataset.id === t.id);
     if (d) { d.open = true; d.scrollIntoView({ block: 'start' }); }
@@ -667,7 +685,7 @@ function logRows() {
     const ws = t.wx?.rows?.map(r => r.wind).filter(x => x != null) || [], wv = t.wx?.rows?.map(r => r.wave).filter(x => x != null) || [];
     return {
       'תאריך': fmtShort(t.start) + '/' + localDate(t.start).slice(0, 4), 'יציאה': fmtTime(tStart(t)), 'סיום': `${localDate(tEnd(t)) !== localDate(tStart(t)) ? fmtShort(tEnd(t)) + ' ' : ''}${fmtTime(tEnd(t))}`,
-      'כלי שיט': v ? v.name : '', 'מסלול': routeTxt(t, s), 'מייל': s.nm != null ? s.nm.toFixed(1) : '', 'סוג מרחק': DIST_KIND[s.distKind], 'שעות': hrs(s.durMin), 'שעות לילה': hrs(s.nightMin), 'ימים בים': s.days || '',
+      'כלי שיט': v ? v.name : '', 'מסלול': routeTxt(t, s), 'מייל ימי': s.nm != null ? s.nm.toFixed(1) : '', 'סוג מרחק': DIST_KIND[s.distKind], 'שעות': hrs(s.durMin), 'שעות לילה': hrs(s.nightMin), 'ימים בים': s.days || '',
       'תפקיד': n.role || ROLE_NONE, 'סקיפר': n.skipper || '', 'צוות': n.crew || '',
       'רוח (מודלים)': ws.length ? `${fmt(Math.min(...ws))}–${fmt(Math.max(...ws))} קשר` : '', 'גלים (מודלים)': wv.length ? `עד ${Math.round(Math.max(...wv) * 100)} ס"מ` : '',
       'אופי הים (מודלים)': dm ? dm.t + (dm.partial ? ' (חלקי)' : '') : '', 'איך הרגיש': n.feel != null ? FEEL[n.feel] : '', 'מפרשים': n.sails || '',
@@ -685,7 +703,7 @@ $('csv').addEventListener('click', () => {
 });
 $('print').addEventListener('click', () => {
   const rows = logRows(); if (!rows.length) return;
-  const cols = ['תאריך', 'יציאה', 'סיום', 'כלי שיט', 'מסלול', 'מייל', 'שעות', 'שעות לילה', 'תפקיד', 'צוות', 'רוח (מודלים)', 'גלים (מודלים)', 'איך הרגיש', 'אירועים', 'הערות'];
+  const cols = ['תאריך', 'יציאה', 'סיום', 'כלי שיט', 'מסלול', 'מייל ימי', 'שעות', 'שעות לילה', 'תפקיד', 'צוות', 'רוח (מודלים)', 'גלים (מודלים)', 'איך הרגיש', 'אירועים', 'הערות'];
   const st = live().map(stats);
   $('print-area').innerHTML = `<h1>יומן הפלגות</h1>
     ${J.vessels.map(v => `<p>${esc(v.name || 'כלי שיט')}${v.type ? ` · ${esc(v.type)}` : ''}${v.loa ? ` · ${esc(v.loa)} מ׳` : ''}${v.reg ? ` · מספר רישום ${esc(v.reg)}` : ''}${v.mmsi ? ` · MMSI/אות קריאה ${esc(v.mmsi)}` : ''}${v.home ? ` · נמל בית ${esc(v.home)}` : ''}</p>`).join('')}
@@ -725,6 +743,32 @@ function renderAll() {
   $('full').classList.toggle('hidden', !has);
   if (has) { renderSummary(); renderFilters(); renderList(); }
   renderBackupWarn(); renderDeleted(); renderPlans(); renderVessels();
+}
+/* ===================== יומן לדוגמה (?demo) ===================== */
+function seedDemo() {
+  const routes = [[0.01, -0.05], [0.025, -0.06], [-0.02, -0.04], [0.04, -0.03], [0.015, -0.08]];
+  const t0 = Date.parse('2025-11-08T08:30:00Z');
+  for (let i = 0; i < 24; i++) {
+    const s = t0 + i * 15 * 86400000 + (i % 4) * 3600000, e = s + (2 + (i % 3)) * 3600000, [la, lo] = routes[i % routes.length];
+    const path = Array.from({ length: 40 }, (_, k) => { const f = k < 20 ? k / 20 : (40 - k) / 20; return [32.1631 + la * f + Math.sin(k) * 0.0008, 34.7962 + lo * f, new Date(s + (e - s) * k / 39).toISOString()]; });
+    const t = normTrip({ id: 'demo-' + i, start: s, end: e, source: 'google-timeline', path, vesselId: 'demo-v',
+      notes: i % 3 === 2 ? {} : { feel: i % 4, role: i % 5 ? 'סקיפר' : 'צוות', crew: i % 2 ? 'סקיפר + 3 אורחים' : 'צוות קבוע', text: ['ים נעים, רוח מערבית', 'ריף ראשון אחרי שעה', 'גלים קצרים ביציאה מהנמל', 'הפלגת שקיעה'][i % 4] } });
+    touch(t); J.trips.push(t);
+  }
+  const ports = { from: 'מרינה הרצליה', via: 'מרינה לרנקה (קפריסין)', to: 'מרינה הרצליה' };
+  const m = normTrip({ id: 'demo-cy', start: '2026-05-28T05:00:00Z', end: '2026-06-02T15:00:00Z', source: 'manual', ports, path: portsPath(ports), vesselId: 'demo-v', fix: { label: 'הרצליה – לרנקה – הרצליה', nm: 330 }, notes: { role: 'סקיפר', crew: '4 אנשי צוות', feel: 2 } });
+  touch(m); J.trips.push(m);
+  J.vessels = [{ id: 'demo-v', name: 'סירה לדוגמה', type: 'מפרשית 40 רגל', loa: '12', reg: '', mmsi: '', home: 'מרינה הרצליה', maxKn: '' }];
+  J.defaultVessel = 'demo-v'; J.lastBackup = nowIso();
+  J.trips.sort((a, b) => tms(b.start) - tms(a.start));
+  saveJournal(J);
+}
+if (DEMO) {
+  if (!J.trips.length) seedDemo();
+  $('demo-banner').classList.remove('hidden');
+  $('demo-banner').innerHTML = `${ico('info', 18)}<span><b>יומן לדוגמה</b> – נתונים מומצאים, שמורים בנפרד. היומן שלך לא השתנה.</span><a class="btn" href="journal.html">חזרה ליומן שלי</a>`;
+  document.title = 'יומן לדוגמה';
+  $('demo-link').closest('p').classList.add('hidden');
 }
 document.querySelectorAll('[data-ico]').forEach(el => { el.innerHTML = ico(el.dataset.ico, +(el.dataset.s || 20)); });
 initManual();

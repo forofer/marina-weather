@@ -257,7 +257,7 @@ a.tab { text-decoration: none; }
 .hc-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.15rem; }
 .hc-head .sec-h { margin: 0; }
 .hc-sub { font-size: 0.8125rem; color: var(--ink-2); margin: 0 0 0.6rem; }
-.hc-art { position: relative; height: 4.5rem; border-radius: var(--r-s); overflow: hidden; margin-bottom: 0.6rem; background: var(--surface-2); }
+.hc-art { position: relative; height: 4.5rem; border-radius: var(--r-s); overflow: hidden; margin-bottom: 0; background: var(--surface-2); }
 .hc-art > svg { display: block; width: 100%; height: 100%; }
 .hc-why { margin: 0.6rem 0 0; font-size: 0.875rem; color: var(--st-ink); font-weight: 500; }
 .facts { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin-top: 0.6rem; font-size: 0.875rem; color: var(--ink-2); }
@@ -283,7 +283,7 @@ a.tab { text-decoration: none; }
 .trend-svg text { font-family: var(--num); font-size: 0.75rem; fill: var(--ink-3); }
 .trend-svg .ax { fill: var(--ink-2); }
 .trend-svg .ax.sel { fill: var(--accent-ink); font-weight: 700; }
-.trend-svg .thr-l { fill: var(--maybe-ink); font-size: 0.6875rem; }
+.trend-svg .thr-l { fill: var(--maybe-ink); font-size: 0.6875rem; font-weight: 600; }
 .legend { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.8125rem; color: var(--ink-2); margin-top: 0.5rem; }
 .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
 .legend svg { flex: none; }
@@ -349,8 +349,16 @@ select, input[type="number"] {
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
 .checklist li { display: flex; gap: 0.6rem; align-items: flex-start; }
 .checklist .ico { color: var(--accent); margin-top: 0.15rem; }
-.alts { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.75rem; font-size: 0.875rem; }
-.alts .btn { min-height: 2.5rem; font-size: 0.875rem; }
+.p-after { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: var(--gap); }
+.p-after:empty { display: none; }
+.alts-box { padding-block: 0.25rem; }
+.alts { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.25rem 0 0.5rem; }
+.alt { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.6rem; text-align: start; min-height: 2.75rem; padding: 0.45rem 0.7rem; border-radius: var(--r-s); border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.alt:hover { background: var(--surface-2); }
+.alt small { flex-basis: 100%; color: var(--ink-2); font-size: 0.8125rem; }
+.alt-tag { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.75rem; font-weight: 600; padding: 0 0.45rem; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+.alt-night { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; font-size: 0.875rem; color: var(--ink-2); }
+.alt-night input { width: 1.2rem; height: 1.2rem; }
 .p-more { margin-top: 0.25rem; }
 .p-more .inner { padding: 0.25rem 0 0.5rem; }
 .p-compass { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
@@ -418,6 +426,16 @@ table.fc { border-collapse: separate; border-spacing: 0; direction: ltr; font-si
 .windy-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .windy-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--ink-2); }
 .windy-wrap.loaded .windy-loading { display: none; }
+.hc-fig { margin: 0.5rem 0 0; }
+.hc-cap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; font-size: 0.875rem; color: var(--ink); margin-top: 0.35rem; }
+.hc-cap .ico { color: var(--ink-3); flex: none; }
+.hc-only { font-size: 0.75rem; color: var(--ink-2); margin-inline-start: auto; }
+.windy-wrap.ext { height: auto !important; min-height: 0; }
+.windy-wrap.ext .windy-ext { position: static; padding: 1rem; }
+.windy-wrap.ext .windy-loading { display: none; }
+.windy-ext .we-d { margin: 0; font-size: 0.9375rem; color: var(--ink); }
+.windy-ext .we-d:empty { display: none; }
+.map-note.hl > summary { color: var(--maybe-ink); font-weight: 600; }
 .windy-ext { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; padding: 1.5rem; text-align: center; background: var(--surface); }
 .windy-ext .we-ico { color: var(--wave); }
 .windy-ext .we-t { margin: 0; font-weight: 600; font-size: 1.0625rem; }

@@ -122,3 +122,15 @@ details.jtrip[open] > summary { border-bottom: 1px solid var(--line); }
   #print-area .sig { margin-top: 18pt; }
   @page { size: A4 landscape; margin: 10mm; }
 }
+/* הוספה ידנית */
+.lbl { display: block; font-size: 0.875rem; color: var(--ink-2); margin-bottom: 0.25rem; }
+.date-quick { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.date-quick input { min-height: 2.75rem; padding: 0.4rem 0.6rem; border-radius: var(--r-s); border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; }
+.chip-btn { min-height: 2.75rem; padding: 0 0.9rem; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.chip-btn:hover { background: var(--surface-2); }
+.port-f { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; color: var(--ink-2); }
+.port-f select, .port-f input { min-height: 2.75rem; padding: 0.4rem 0.6rem; border-radius: var(--r-s); border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; width: 100%; }
+.port-f input.hidden { display: none; }
+.opt > summary { cursor: pointer; color: var(--accent-ink); font-size: 0.9375rem; min-height: 2.75rem; display: flex; align-items: center; }
+.jbanner.demo { background: var(--accent-soft); align-items: center; }
+.jbanner.demo .btn { margin-inline-start: auto; }

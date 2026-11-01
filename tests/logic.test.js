@@ -211,7 +211,7 @@ test('גשם רציף: אירוע אחד, הטווח לפי "שעה שקדמה" 
   setData(rainDay({ 16: { rain: 1.2 }, 17: { rain: 3.0 }, 18: { rain: 0.8 } }));
   const r = RS(`rainSummary(intervalRows('2026-11-02', 12, 20))`);
   eq(r.events.length, 1); eq([r.events[0].start, r.events[0].end], [15, 18]);
-  ok(/גשם קל עד בינוני צפוי בין 15:00 ל-18:00/.test(r.text), r.text);
+  ok(/גשם קל עד בינוני (צפוי|לפי התחזית), [\u2066]?15:00–18:00/.test(r.text), r.text);
   ok(/כמות מצטברת 5.0 מ"מ/.test(r.details[0]) && /16:00–17:00\u2069? 3.0|17:00.{0,3} 3.0/.test(r.details[0].replace(/[\u2066\u2069]/g, '')), r.details[0]);
 });
 test('שני פרקים נפרדים לא מאוחדים לטווח אחד', () => {
@@ -223,18 +223,18 @@ test('שני פרקים נפרדים לא מאוחדים לטווח אחד', () 
 test('ההסתברות המרבית שייכת לשעה המאוחרת – ומוצגת ככזו', () => {
   setData(rainDay({ 13: { rain: 0.6, popEns: 30, ensN: 122 }, 14: { rain: 0.7, popEns: 80, ensN: 122 } }));
   const r = RS(`rainSummary(intervalRows('2026-11-02', 11, 16))`);
-  eq(r.events[0].maxPEnd, 14); ok(/הסתברות מרבית בשעה בודדת: 80%/.test(r.text), r.text);
+  eq(r.events[0].maxPEnd, 14); ok(/^גשם .*צפוי/.test(r.text) && r.details.some(d => /הסתברות מרבית בשעה בודדת 80%/.test(d)), r.text);
   ok(/80% \(.?13:00–14:00/.test(r.details[0]), r.details[0]);
 });
 test('גשם חלש בהסתברות גבוהה: מוצג, עוצמה "קל" לפי הכמות', () => {
   setData(rainDay({ 12: { rain: 0.2, popEns: 75, ensN: 100 } }));
   const r = RS(`rainNext('2026-11-02', 10)`);
-  eq(r.status, 'wet'); ok(/^גשם קל צפוי בין 11:00 ל-12:00/.test(r.text), r.text);
+  eq(r.status, 'wet'); ok(/^גשם קל צפוי, .?11:00–12:00/.test(r.text), r.text);
 });
 test('גשם משמעותי בהסתברות נמוכה – לא מוסתר', () => {
   setData(rainDay({ 12: { rain: 4, popEns: 15, ensN: 100 } }));
   const r = RS(`rainNext('2026-11-02', 10)`);
-  eq(r.status, 'wet'); ok(/גשם בינוני/.test(r.text) && /15%/.test(r.text), r.text);
+  eq(r.status, 'wet'); ok(/^אפשרות לגשם בינוני/.test(r.text) && r.details.some(d => /15%/.test(d)), r.text);
 });
 test('בלי נתון כמות לא ממציאים עוצמה', () => {
   setData(rainDay({ 12: { rain: null, popEns: 70, ensN: 100 } }));
@@ -257,7 +257,7 @@ test('חציית חצות: 4 השעות מ-22:00 כוללות את היום הב
   setData(rainDay({ 23: { rain: 1 } }).concat(rainDay({ 0: { rain: 1.5 }, 1: { rain: 1 } }, '2026-11-03')), '2026-11-02T20:00');
   const r = RS(`rainNext('2026-11-02', 21, 4)`);
   eq(r.events.length, 1); eq([r.events[0].start, r.events[0].end], [22, 1]);
-  ok(/בין 22:00 ל-01:00/.test(r.text), r.text);
+  ok(/22:00–01:00/.test(r.text), r.text);
 });
 test('מקור חלופי (Open-Meteo, >0.1 מ"מ): סף 60%, והמקור מצוין', () => {
   setData(rainDay({ 11: { popOM: 50 }, 12: { popOM: 70 } }));
@@ -267,7 +267,7 @@ test('מקור חלופי (Open-Meteo, >0.1 מ"מ): סף 60%, והמקור מצ�
 test('סופת רעמים עם מעט משקעים: התרעה מובחנת', () => {
   setData(rainDay({ 12: { rain: 0.1, code: 95 } }));
   const r = RS(`rainNext('2026-11-02', 10)`);
-  ok(r.thunder && /^סופת רעמים צפויה בין 11:00 ל-12:00/.test(r.text), r.text);
+  ok(r.thunder && /סופת רעמים/.test(r.text) && /11:00–12:00/.test(r.text), r.text);
 });
 test('גשם קל לא הופך הפלגה ל"לא מומלץ"', () => {
   setData(rainDay({ 11: { rain: 1.5, popEns: 90, ensN: 100 }, 12: { rain: 1, popEns: 90, ensN: 100 } }));

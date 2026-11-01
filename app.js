@@ -64,7 +64,9 @@ function metric({ icon, label, value, unit, dir, sub, over, lvl, title }) {
 }
 // אופי הים – שורה עם רמה, למי מתאים ולמה. ים נוח – בלי שורה
 function demandLine(dm, { label = 'אופי הים' } = {}) {
+  if (dm && dm.partial && dm.lvl < 2) return `<div class="demand dm0"><span class="dm-h">${ico('waves', 18)}<b>אין מספיק נתונים להערכת נוחות הים</b></span><span class="dm-w">חסרים נתוני ${dm.missing.join(' ו')}${dm.why.length ? ' · ידוע: ' + dm.why.join(' · ') : ''}</span></div>`;
   if (!dm || dm.lvl === 0) return '';
+  if (dm.partial) label += ' (לפי הנתונים החלקיים)';
   return `<div class="demand dm${dm.lvl}"><span class="dm-h">${ico('waves', 18)}<b>${label}: ${dm.t}</b>${dm.d ? ` – ${dm.d}` : ''}</span>${dm.why.length ? `<span class="dm-w">${dm.why.slice(0, 3).join(' · ')}</span>` : ''}</div>`;
 }
 // כרטיס גשם משותף: מוצג רק כשיש גשם רלוונטי או כשחסרים נתונים. "יבש" לא מציג כלום
@@ -107,7 +109,14 @@ function renderDays() {
   $('prev-day').onclick = () => { if (i > 0) selectDate(dates[i - 1]); };
   $('next-day').onclick = () => { if (i < dates.length - 1) selectDate(dates[i + 1]); };
 }
-function selectDate(d) { selectedDate = d; seaHour = null; renderAll(); }
+// היום והשעה שנבחרו נשמרים לאורך הביקור (גם אחרי מעבר ליומן וחזרה)
+const SEL_KEY = 'sel_v1';
+let pickedDate = false;
+function saveSel() { try { sessionStorage.setItem(SEL_KEY, JSON.stringify({ date: selectedDate, hour: seaHour, picked: pickedDate, scroll: { ...scrollMem, [curView]: window.scrollY } })); } catch (_) {} }
+function loadSel() {
+  try { const x = JSON.parse(sessionStorage.getItem(SEL_KEY)); if (x && x.date >= todayStr()) { selectedDate = x.date; seaHour = x.hour ?? null; pickedDate = !!x.picked; Object.assign(scrollMem, x.scroll || {}); } } catch (_) {}
+}
+function selectDate(d) { selectedDate = d; seaHour = null; pickedDate = true; saveSel(); renderAll(); }
 
 /* ===================== סיכום: כרטיס החלטה ===================== */
 function dayWarnings(date, rows) {
@@ -206,7 +215,7 @@ function selectedRow() {
   if (seaHour == null || !byH.has(seaHour)) seaHour = seaDefaultHour(selectedDate);
   return byH.get(seaHour);
 }
-function selectHour(h) { seaHour = h; renderHourCard(); renderTrend(); renderTable(); }
+function selectHour(h) { seaHour = h; saveSel(); renderHourCard(); renderTrend(); renderTable(); }
 
 function hourMetrics(r) {
   const v = verdict(r), lv = v.level === 2 ? 2 : 1;
@@ -254,9 +263,8 @@ function renderHourCard() {
     <div class="hours" role="tablist" aria-labelledby="pick-hour-l">${chips}</div>
     <div class="facts">
       ${sunset ? `<span>${ico('sunset', 16)}<span>שקיעה ${bdi(sunset)}</span></span>` : ''}
-      ${isNum(r.wave) ? `<span>${ico('sailboat', 16)}<span>${seaFeel(r)}</span></span>` : ''}
     </div>
-    <div class="hc-art">${seaSvg(r)}</div>`;
+    <figure class="hc-fig"><div class="hc-art">${seaSvg(r)}</div><figcaption class="hc-cap">${ico('sailboat', 16)}<span>${seaFeel(r)}</span><span class="hc-only">המחשה בלבד – לא חיזוי של תנועת הסירה</span></figcaption></figure>`;
   el.querySelectorAll('.hr').forEach(b => b.addEventListener('click', () => selectHour(+b.dataset.h)));
   if (canNow) $('hour-now').addEventListener('click', () => { selectHour(nowH); $('hour-card').querySelector('.hr.on')?.focus(); });
   const bar = el.querySelector('.hours');
@@ -281,7 +289,9 @@ function seaSvg(r) {
   const W = 360, H = 80, base = 54;
   const night = isNight(r), dark = isDark();
   const h = Math.min(r.wave ?? 0, 3), T = Math.max(3, Math.min(r.wavePer ?? 6, 12));
-  const A = 1.2 + h * 4.5, L = 34 + T * T * 2.2;
+  // ים צולב או גלים קצרים: גל קצר יותר ושכבת גלים נוספת בכיוון אחר – כמו ההערכה הכוללת
+  const dmx = seaDemand(r), choppy = !!dmx && dmx.why.some(x => /צולב|קצרים ותלולים/.test(x));
+  const A = 1.2 + h * 4.5, L = (34 + T * T * 2.2) * (choppy ? 0.6 : 1);
   const w = r.wind ?? 0;
   const heel = Math.min(22, w * 1.1);
   const bob = Math.min(2, Math.max(0.8, A * 0.2));
@@ -308,12 +318,13 @@ function seaSvg(r) {
     <path d="M-2 -40 L-2 -3 L-19 -3 Z" fill="${P.sail}" stroke="${P.line}" stroke-width="1.3" stroke-linejoin="round"/>
     <path d="M-25 0 L25 0 L18 8 L-18 8 Z" fill="${P.hull}"/>`;
   g += `<g transform="translate(120 ${(base - 2 - A * 0.5).toFixed(1)}) scale(.62)"><g class="sc-boat" style="--b:${(bob / .62).toFixed(1)}px;--h:${heel.toFixed(0)}deg;--t:${(T * 0.9).toFixed(1)}s">${boat}</g></g>`;
+  if (choppy) g += `<g class="sc-wave" style="--L:${(L * 0.55).toFixed(0)}px;--t:${(9 + T).toFixed(1)}s"><path d="${wavePath(W, base + 1, A * 0.45, L * 0.55, L / 5, false)}" fill="none" stroke="${P.foam}" stroke-width="1.2" opacity=".6"/></g>`;
   g += `<g class="sc-wave" style="--L:${L.toFixed(0)}px;--t:${(12 + T).toFixed(1)}s"><path d="${wavePath(W, base + 3, A, L, L / 3)}" fill="url(#se)"/><path d="${wavePath(W, base + 3, A, L, L / 3, false)}" fill="none" stroke="${P.foam}" stroke-width="1.6" stroke-linecap="round" opacity=".85"/></g>`;
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="המחשה: ${esc(seaFeel(r))}">${g}</svg>`;
 }
 
 /* ===================== גרף שתי רצועות: רוח ומשבים · גלים ===================== */
-function trendChart(target, rows, { sel = null, onPick = null, dimPast = false, lastIsEnd = false } = {}) {
+function trendChart(target, rows, { sel = null, onPick = null, dimPast = false, lastIsEnd = false, sunset = true } = {}) {
   const el = $(target); if (!el) return;
   if (!rows.length) { el.innerHTML = '<p class="muted">אין נתונים לשעות האלה.</p>'; return; }
   const fs = remPx() / 16;
@@ -344,7 +355,7 @@ function trendChart(target, rows, { sel = null, onPick = null, dimPast = false, 
   g += `<text x="${W - right}" y="${yW0 - 6}" text-anchor="start" direction="rtl" class="ax">רוח ומשבים · קשר</text>`;
   g += `<text x="${W - right}" y="${yV0 - 6}" text-anchor="start" direction="rtl" class="ax">גלים · ס״מ</text>`;
   // ספים
-  const thr = (y, label) => `<line x1="${left}" x2="${W - right}" y1="${y}" y2="${y}" style="stroke:var(--thr)" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W - right - 2}" y="${y - 4}" class="thr-l" text-anchor="start" direction="rtl">${label}</text>`;
+  const thr = (y, label) => `<line x1="${left}" x2="${W - right}" y1="${y}" y2="${y}" style="stroke:var(--thr)" stroke-width="1.6" stroke-dasharray="5 4"/><text x="${W - right - 2}" y="${y - 4}" class="thr-l" text-anchor="start" direction="rtl">${label}</text>`;
   g += thr(yw(settings.maxWind), `הסף שלך לרוח: ${settings.maxWind}`);
   if (Math.abs(yw(settings.maxGust) - yw(settings.maxWind)) > 14 * fs) g += thr(yw(settings.maxGust), `למשבים: ${settings.maxGust}`);
   g += thr(yv(settings.maxWave), `הסף שלך: ${CM(settings.maxWave)}`);
@@ -371,6 +382,14 @@ function trendChart(target, rows, { sel = null, onPick = null, dimPast = false, 
     if (past) g += `<rect x="${left + cw * i}" y="${yW0}" width="${cw}" height="${yA - yW0}" style="fill:var(--surface)" opacity=".22"/>`;
   });
   if (hasRain) g += `<text x="${left - 6}" y="${yR0 + rainH - 3}" text-anchor="end" style="fill:var(--rain)">גשם</text>`;
+  // קו השקיעה – כדי לראות את טווח השעות ביחס לחושך
+  if (sunset && data.daily[rows[0].date]) {
+    const ss = sunH(rows[0].date, 'sunset'), i0 = rows.findIndex(r => r.date === rows[0].date && r.hour === Math.floor(ss));
+    if (i0 >= 0) {
+      const x = cx(i0) + cw * (ss - Math.floor(ss));
+      if (x >= left && x <= W - right) g += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yW0}" y2="${yA}" style="stroke:var(--thr)" stroke-width="1.5" stroke-dasharray="2 3"/><text x="${(x - 3).toFixed(1)}" y="${yW0 + 11 * fs}" class="thr-l" text-anchor="end">שקיעה ${data.daily[rows[0].date].sunset.slice(11)}</text>`;
+    }
+  }
   // ציר זמן
   const k = [1, 2, 3, 4, 6].find(k => cw * k >= 24 * fs) || 6;
   rows.forEach((r, i) => {
@@ -497,7 +516,7 @@ function renderTable() {
     h += row('גלי רוח (ס״מ · שנ׳)', r => cell(r, r.ww == null ? '–' : `${CM(r.ww)}<span class="sub">${fmt(r.wwPer, 1)}</span>`), 'mrow');
     h += row('סוול (ס״מ · שנ׳)', r => cell(r, r.sw == null ? '–' : `${CM(r.sw)}<span class="sub">${fmt(r.swPer, 1)}</span>`), 'mrow');
   }
-  h += row('<span title="נוח / בינוני / מאתגר / קשה – לפי רוח (הגבוהה בין המודלים), משבים, גובה, גלים קצרים וים צולב">אופי הים</span>', r => { const d = seaDemand(r); return cell(r, d ? ['נוח', 'בינוני', 'מאתגר', 'קשה'][d.lvl] : '–', d && d.lvl >= 2 ? ' ov1' : '', d && d.why.length ? d.why.join(' · ') : ''); });
+  h += row('<span title="נוח / בינוני / מאתגר / קשה – לפי רוח (הגבוהה בין המודלים), משבים, גובה, גלים קצרים וים צולב">אופי הים</span>', r => { const d = seaDemand(r); return cell(r, d && !(d.partial && d.lvl < 2) ? ['נוח', 'בינוני', 'מאתגר', 'קשה'][d.lvl] : '<span class="sub" title="אין מספיק נתונים">?</span>', d && d.lvl >= 2 ? ' ov1' : '', d && d.why.length ? d.why.join(' · ') : ''); });
   h += row('מים (°C)', r => cell(r, fmt(r.sst, 1)));
   h += grp('מזג אוויר');
   h += row('שמיים', r => cell(r, wxIco(r.code, isNight(r)), '', WX_NAME(r.code)));
@@ -524,6 +543,7 @@ function renderTable() {
 
 /* ===================== תכנון הפלגה ===================== */
 let plan = { date: null, from: 9, to: 14, course: '' };
+let altNight = false, altsOpen = false, planSel = null;   // "הצג גם חלופות בלילה"
 let trips = [], pastTrips = [];   // pastTrips: תכניות שהזמן שלהן עבר – נשמרות, והיומן מציע להוסיף אותן
 const COURSES = [
   { v: '', t: 'סיבוב חופשי' },
@@ -670,7 +690,7 @@ function renderPlan() {
   const conf = modelConfidence(rows);
   const dep = rows[0], ret = rows[rows.length - 1];
   const segs = sailPlanSegments(rows, true);
-  const alts = lvl > 0 ? findAlternatives(plan) : [];
+  const alts = lvl > 0 ? findAlternatives(plan, { night: altNight }) : [];
   const dur = plan.to - plan.from;
   const saved = tripSaved();
 
@@ -685,12 +705,17 @@ function renderPlan() {
   const problems = reasons.concat(extraWarn);
   // כמו בסיכום: כשרק אופי הים מונע "מתאים" – "אפשר לצאת – ים מאתגר"
   const demandOnly = lvl === 1 && !extraWarn.length && rows.every(r => verdict(r).reasons.every(isDemandReason));
-  const pTitle = demandOnly && s.dm ? `אפשר לצאת – ${s.dm.t}` : VERDICT[lvl].long;
-  const why = demandOnly && s.dm ? `${s.dm.d}: ${s.dm.why.slice(0, 2).join(' · ')}` : problems.length ? problems.slice(0, 3).join(' · ') : 'כל השעות, כולל שעת החזרה, בתוך הספים <button type="button" class="linkish" data-open-settings>שהגדרת</button>';
+  const pTitle = demandOnly && s.dm ? demandTitle(s.dm) : VERDICT[lvl].long;
+  // מסקנה קצרה והסיבה העיקרית; הפירוט המלא (למשל ים צולב) מופיע פעם אחת, ב"התנאים בדרך"
+  const why = demandOnly && s.dm ? `${s.dm.d}${s.dm.why[0] ? ': ' + s.dm.why[0].replace(/:.*$/, '') : ''}` : problems.length ? problems.slice(0, 2).join(' · ') : 'כל השעות, כולל שעת החזרה, בתוך הספים <button type="button" class="linkish" data-open-settings>שהגדרת</button>';
   const actions = `<button id="p-save" class="btn"${saved ? ' aria-pressed="true"' : ''}>${ico(saved ? 'bookmark-check' : 'bookmark', 18)}${saved ? 'התכנית נשמרה' : 'שמור תכנית הפלגה'}</button>
     <button id="p-copy" class="btn">${ico('share-2', 18)}שתף סיכום</button><span id="p-copied" class="copied" role="status"></span>`;
-  const altHtml = alts.length ? `<div class="alts"><span class="muted">זמנים טובים יותר באותו אורך:</span>${alts.map(a => `<button class="btn alt" data-d="${a.date}" data-f="${a.from}" data-t="${a.to}">${dayName(a.date).name} ${span(a.from, a.to)}</button>`).join('')}</div>`
-    : (lvl > 0 ? '<p class="note">לא נמצא זמן מתאים באותו אורך ב-7 הימים הקרובים.</p>' : '');
+  const altTag = a => a.dark === 'night' ? `<span class="alt-tag">${ico('moon', 14)}הפלגת לילה</span>` : a.dark === 'part' ? `<span class="alt-tag">${ico('moon', 14)}חלק בחושך</span>` : '';
+  const altHtml = lvl > 0 ? `<details class="card more alts-box" id="alts-box"${altsOpen ? ' open' : ''}><summary>מצא שעות נוחות יותר (באותו אורך)</summary>
+      ${alts.length ? `<div class="alts">${alts.map(a => `<button class="alt" data-d="${a.date}" data-f="${a.from}" data-t="${a.to}"><b>${dayName(a.date).name} ${bdi(span(a.from, a.to))}</b>${altTag(a)}<small>${a.why}</small></button>`).join('')}</div>`
+        : `<p class="note">לא נמצא זמן מתאים באותו אורך ב-7 הימים הקרובים${altNight ? '' : ' באור יום'}.</p>`}
+      <label class="alt-night"><input type="checkbox" id="alt-night"${altNight ? ' checked' : ''}> הצג גם חלופות בלילה</label>
+    </details>` : '';
   // שינוי בין יציאה לחזרה – מחושב מהערכים המעוגלים שמוצגים, כדי ש-12 ← 7 לא יוצג כ"ירידה של 6"
   const chg = (a, b, d, unit, k) => {
     if (a == null || b == null) return '';
@@ -718,12 +743,20 @@ function renderPlan() {
   }
   const tripLine = `<div class="trip-line"><span>${ico('compass', 16)}<b>${n.full}</b></span><span>יציאה <b>${bdi(hm(plan.from))}</b></span><span>חזרה <b>${bdi(plan.to === 24 ? '24:00' : hm(plan.to))}</b></span><span class="muted">${hoursTxt(dur)}</span></div>`;
 
+  // הגיעו מהסיכום עם יום אחר מהתכנית השמורה: לא מחליפים בשקט, וגם לא דורסים – מציעים
+  const ctxHtml = pickedDate && selectedDate && selectedDate !== plan.date && weekDates().includes(selectedDate)
+    ? `<div class="notice ctx-note"><span>מוצגת תכנית שמורה ל${dayName(plan.date).full}.</span><button class="btn primary" id="p-use-sel">תכנן את ${dayName(selectedDate).full} שבחרת</button></div>` : '';
   out.innerHTML = `
+    ${ctxHtml}
     ${durHtml}
     <div class="p-top">
-      ${decisionCard({ lvl, scope: tripLine, title: pTitle, why, actions: '', extra: rainCard(rain.during) + rainCard(rain.after, { after: true }) + altHtml, basis: problems.length > 0 })}
+      ${decisionCard({ lvl, scope: tripLine, title: pTitle, why, actions: '', basis: problems.length > 0 })}
       <section class="card p-metrics" aria-label="רוח, משבים וגלים לאורך ההפלגה">${metrics}</section>
+    </div>
+    <div class="p-after">
+      ${rainCard(rain.during) + rainCard(rain.after, { after: true })}
       <div class="dc-actions p-actions">${actions}</div>
+      ${altHtml}
     </div>
     <div class="p-grid">
       <section class="card p-sec" aria-labelledby="pd-title">
@@ -745,9 +778,10 @@ function renderPlan() {
       <section class="card p-sec wide" aria-labelledby="pw-title">
         <h2 class="sec-h" id="pw-title">${ico('route', 18)}התנאים בדרך</h2>
         <div id="p-trend"></div>
+        ${sun ? `<p class="note">${ico('sunset', 16)}<span>${plan.to <= sunsetH ? `השקיעה ב-${bdi(sun.sunset.slice(11))} – ${sunsetH - plan.to < 1 ? Math.round((sunsetH - plan.to) * 60) + ' דקות' : fmt(sunsetH - plan.to, 1).replace(/\.0$/, '') + ' שעות'} אחרי החזרה` : `השקיעה ב-${bdi(sun.sunset.slice(11))} – לפני החזרה; חלק מההפלגה בחושך`}</span></p>` : ''}
         <div class="seg-list" aria-label="המלצת מפרשים">${segs.map(sg => `<div><span class="t">${bdi(sg.label)}</span><span>${lvl > 0 ? sg.t.replace(' – רוח טובה להפלגה', '') : sg.t}</span></div>`).join('')}</div>
         ${demandLine(s.dm, { label: 'אופי הים בהפלגה' })}
-        <p class="note">${wxIco(dep.code, isNight(dep), 16)}<span>${range(s.tMin, s.tMax)}° · מים ${fmt(s.sst)}° · ${comfortText(s.wvMax, s.per)}</span></p>
+        <p class="note">${wxIco(dep.code, isNight(dep), 16)}<span>${range(s.tMin, s.tMax)}° · מים ${fmt(s.sst)}° · ${seaMotionText(s.dm, s.wvMax, s.per)}</span></p>
         <p class="note">${ico('info', 16)}<span>המלצת המפרשים היא הערכה כללית ליאכטה של 12 מ׳ – תלויה בסירה ובצוות.</span></p>
       </section>
       <section class="card wide p-more">
@@ -762,7 +796,12 @@ function renderPlan() {
   out.querySelectorAll('[data-dur]').forEach(b => b.addEventListener('click', () => {
     plan = { ...plan, to: plan.from + +b.dataset.dur }; fillPlanForm(); store.set('local', 'plan_v1', plan); renderPlan();
   }));
-  trendChart('p-trend', rows, { lastIsEnd: true });
+  // נגיעה בגרף בתכנון מציגה את הערכים לשעה; מתחת – השקיעה ביחס לחזרה
+  const drawPlanTrend = () => trendChart('p-trend', rows, { lastIsEnd: true, sel: planSel != null && rows.some(r => r.hour === planSel) ? planSel : rows[0].hour, onPick: h => { planSel = h; drawPlanTrend(); } });
+  drawPlanTrend();
+  $('p-use-sel')?.addEventListener('click', () => { plan = { ...plan, date: selectedDate, win: undefined }; fillPlanForm(); store.set('local', 'plan_v1', plan); renderPlan(); });
+  $('alt-night')?.addEventListener('change', e => { altNight = e.target.checked; altsOpen = true; renderPlan(); });
+  $('alts-box')?.addEventListener('toggle', e => { altsOpen = e.target.open; });
   out.querySelectorAll('.alt').forEach(b => b.addEventListener('click', () => {
     plan = { ...plan, date: b.dataset.d, from: +b.dataset.f, to: +b.dataset.t }; fillPlanForm(); store.set('local', 'plan_v1', plan); renderPlan();
   }));
@@ -831,7 +870,10 @@ function renderAll() {
   renderTable();
   renderPlan();
   renderUpdated();
+  // חזרה מהיומן: מיקום הגלילה של המסך נשמר
+  if (restoreScroll) { restoreScroll = false; const y = scrollMem[curView]; if (y) requestAnimationFrame(() => window.scrollTo(0, y)); }
 }
+let restoreScroll = true;
 
 function renderUpdated() {
   if (!data) return;
@@ -905,6 +947,18 @@ function windyTimeout() {
 function applyWindyLayer() {
   const ext = WINDY_EXTERNAL.includes(windyOverlay);
   $('windy-ext').classList.toggle('hidden', !ext);
+  $('windy-wrap').classList.toggle('ext', ext);
+  // זמן המפה עצמאי – מודגש כשהיום שנבחר באפליקציה אינו היום
+  const other = selectedDate && selectedDate !== todayStr();
+  $('map-note-s').textContent = other ? `זמן המפה נבחר בנפרד – היא לא מציגה את ${dayName(selectedDate).full}` : 'זמן המפה נבחר בנפרד';
+  document.querySelector('.map-note').classList.toggle('hl', !!other);
+  if (ext && data) {
+    const r = data.rows.find(x => x.date === selectedDate && x.hour === (seaHour ?? seaDefaultHour(selectedDate)));
+    const when = r ? `${dayName(r.date).name} ${hm(r.hour)}` : '';
+    $('windy-ext-d').textContent = !r ? '' : windyOverlay === 'waves'
+      ? (isNum(r.wave) ? `בנקודה שלנו · ${when}: גלים ${CM(r.wave)} ס"מ${isNum(r.wavePer) ? `, מחזור ${fmt(r.wavePer)} שנ׳` : ''}${r.waveDir != null ? `, ${from8(r.waveDir)}` : ''}` : `בנקודה שלנו · ${when}: אין נתוני גלים`)
+      : (isNum(r.sw) ? `בנקודה שלנו · ${when}: סוול ${CM(r.sw)} ס"מ${isNum(r.swPer) ? `, מחזור ${fmt(r.swPer)} שנ׳` : ''}${r.swDir != null ? `, ${from8(r.swDir)}` : ''}` : `בנקודה שלנו · ${when}: אין נתוני סוול`);
+  }
   $('windy-frame').classList.toggle('hidden', ext);
   if (ext) {
     const name = WINDY_LAYERS[windyOverlay];
@@ -920,9 +974,10 @@ function applyWindyLayer() {
 // המפה ממלאת את הגובה שנשאר מעל סרגל הניווט
 function fitWindy() {
   const w = $('windy-wrap'); if (!w || $('windy-view').classList.contains('hidden')) return;
+  if (w.classList.contains('ext')) { w.style.height = ''; return; }   // כרטיס קומפקטי – בלי גובה של מפה
   const nav = $('view-tabs'), navH = getComputedStyle(nav).position === 'fixed' ? nav.offsetHeight : 0;
   const top = w.getBoundingClientRect().top + window.scrollY;
-  w.style.height = Math.max(320, window.innerHeight - top - navH - 12) + 'px';
+  w.style.height = Math.max(320, window.innerHeight - top - navH - 20) + 'px';   // המקרא בתחתית המפה נשאר מעל סרגל הניווט
 }
 
 /* ===================== מעבר בין מסכים ===================== */
@@ -940,6 +995,7 @@ function showView(v) {
   const changed = v !== curView;
   curView = v;
   store.set('local', 'view_v3', v);
+  saveSel();
   if (changed) track('view-' + v);
   if (data && v !== 'windy') renderAll(); // הרוחב האמיתי ידוע רק כשהמסך גלוי
   if (v === 'windy') { applyWindyLayer(); requestAnimationFrame(fitWindy); }
@@ -1050,6 +1106,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allTrips = (await store.get('sync', 'trips_v1')) || [];
   trips = allTrips.filter(t => t.date >= today0);
   pastTrips = allTrips.filter(t => t.date < today0 && t.date >= new Date(Date.parse(today0 + 'T12:00:00Z') - 60 * 86400000).toISOString().slice(0, 10));   // עד חודשיים אחורה – ליומן
+  loadSel();
+  addEventListener('pagehide', saveSel);
   const savedPlan = await store.get('local', 'plan_v1');
   if (savedPlan && savedPlan.date >= today0) plan = savedPlan;
   const lastView = await store.get('local', 'view_v3');

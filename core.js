@@ -86,7 +86,7 @@ function heroStatus(date) {
   } else if (lvl === 1 && rows.every(r => verdict(r).reasons.every(isDemandReason))) {
     // רק אופי הים מונע "מתאים": אפשר לצאת – להיות מוכנים
     const dm = demandOf(rows);
-    title = `אפשר לצאת – ${dm.t}`;
+    title = demandTitle(dm);
     why = `${dm.d}: ${dm.why.slice(0, 2).join(' · ')}`;
     later = wins.length ? `שעות נוחות יותר: ${winTxt}` : '';
   } else {
@@ -313,6 +313,17 @@ function seaText(h) {
   if (h < 2.5) return 'גלים גבוהים מאוד';
   return 'ים סוער';
 }
+// כותרת כשרק אופי הים מונע "מתאים": מאתגר – אפשר לצאת עם צוות מוכן; קשה – לא "אפשר לצאת", אלא זהירות רבה
+const demandTitle = dm => dm.lvl >= 3 ? `${dm.t} – נדרשת זהירות רבה` : `אפשר לצאת – ${dm.t}`;
+/* תיאור התנועה בים – משותף לכרטיס השעה, להמחשה ולתכנון. נגזר מההערכה הכוללת (אופי הים), ולא רק מגובה הגל:
+   כשהים מאתגר או קשה לא מוצג משפט מרגיע. כשחסרים נתונים – אומרים את זה. */
+function seaMotionText(dm, h, T) {
+  if (!dm || (dm.partial && dm.lvl < 2)) return 'אין מספיק נתונים להערכת נוחות הים';
+  const cross = dm.why.some(w => /ים צולב/.test(w)), steep = dm.why.some(w => /קצרים ותלולים/.test(w));
+  if (dm.lvl >= 3) return `ים קשה – תנועה חזקה${cross || steep ? ' ולא סדירה' : ''}, לצוות מנוסה מאוד`;
+  if (dm.lvl === 2) return cross ? 'ים מאתגר – ים צולב, תנועה לא סדירה' : steep ? 'ים מאתגר – גלים קצרים, תנועה חדה' : 'ים מאתגר – תנועה מורגשת, דורש ניסיון';
+  return comfortText(h, T);
+}
 function comfortText(h, T) {
   if (h == null) return '';
   if (h < 0.3) return 'כמעט בלי תנועה';
@@ -453,10 +464,16 @@ function rainSummary(rows) {
   }
   const maxP = Math.max(...events.map(e => e.maxP ?? -1));
   const thunder = events.some(e => e.thunder);
+  // הכותרת מבחינה בין כמות חזויה להסתברות: "צפוי" רק כשההסתברות גבוהה (70%+); אחרת "אפשרות ל…". המספרים – בפירוט
+  const sure = maxP >= 70, noP = maxP < 0;
   let text;
-  if (events.length === 1) text = `${rainWhat(events[0])} ${events[0].thunder ? 'צפויה' : 'צפוי'} בין ${hm(events[0].start)} ל-${hm(events[0].end)}`;
-  else text = `${thunder ? 'גשם וסופת רעמים' : 'גשם'} ב-${events.length} פרקים נפרדים: ${events.map(e => hhSpan(e.start, e.end)).join(' ו-')}`;
-  if (maxP >= 0) text += `. הסתברות מרבית בשעה בודדת: ${maxP}%`;
+  if (events.length === 1) {
+    const e = events[0], what = rainWhat(e), when = hhSpan(e.start, e.end);
+    text = noP ? `${what} לפי התחזית, ${when}` : sure ? `${what} ${e.thunder ? 'צפויה' : 'צפוי'}, ${when}` : `אפשרות ל${what}, ${when}`;
+  } else {
+    const what = thunder ? 'גשם וסופת רעמים' : 'גשם', when = events.map(e => hhSpan(e.start, e.end)).join(' ו-');
+    text = `${sure || noP ? what + ' צפוי' : 'אפשרות ל' + what} ב-${events.length} פרקים נפרדים: ${when}`;
+  }
   const details = events.map(e => {
     const parts = [`${hhSpan(e.start, e.end)}: ${rainWhat(e)}`];
     if (e.total != null && e.total >= 0.1) parts.push(`כמות מצטברת ${fmt(e.total, 1)} מ"מ`);
@@ -467,6 +484,7 @@ function rainSummary(rows) {
   });
   const srcs = [...new Set(events.map(e => e.src).filter(Boolean))];
   const src = srcs.length === 1 ? srcs[0] : srcs.length ? 'mixed' : null;
+  if (src && events.some(e => e.amountsKnown)) details.push(`הכמות – לפי מודל התחזית; ההסתברות – ${PROB_SRC[src]}. אלה מקורות שונים, ולכן הם לא תמיד מתיישבים.`);
   return { status: 'wet', events, text, thunder, note: missNote, details, src, srcText: src ? PROB_SRC[src] : '' };
 }
 // גשם ב-4 השעות שאחרי השעה שנבחרה (המרווחים h…h+4)
@@ -500,7 +518,7 @@ function activeRows(date) {
 }
 
 function seaFeel(r) {
-  return isNum(r.wave) ? comfortText(r.wave, r.wavePer) : 'אין נתוני גלים לשעה הזו';
+  return seaMotionText(seaDemand(r), r.wave, r.wavePer);
 }
 
 const FROM8 = ['מצפון', 'מצפון-מזרח', 'ממזרח', 'מדרום-מזרח', 'מדרום', 'מדרום-מערב', 'ממערב', 'מצפון-מערב'];
@@ -578,25 +596,48 @@ function sailPlanSegments(rows, lastIsEnd = false) {
 }
 // הפלגה שמתאימה לחלון: יציאה בתחילתו, חזרה בשעה המתאימה האחרונה
 const windowPlan = (w, date = w.date) => ({ date, from: w.start, to: w.end });
-function findAlternatives(p) {
+/* חלופות לתכנית: שעות שכולן בתוך הספים, באותו אורך.
+   עדיפות לאותו יום ולשעות דומות; הפלגת יום מקבלת חלופות באור יום, אלא אם ביקשו גם לילה (night).
+   חלופה בחושך מסומנת ("הפלגת לילה" / "חלק בחושך") ולא מוצגת כעדיפה רק כי הרוח חלשה יותר. */
+function findAlternatives(p, { night = false } = {}) {
   const dur = p.to - p.from;
   const nowT = nowLocal();
+  const base = planRows(p).filter(r => !r.placeholder);
+  const planDark = base.some(isNight);
+  const mxOf = (rows, k) => { const v = rows.map(r => r[k]).filter(isNum); return v.length ? Math.max(...v) : null; };
+  const pw = mxOf(base, 'wind'), pg = mxOf(base, 'gust'), pv = mxOf(base, 'wave');
+  const pDm = demandOf(base);
   const out = [];
   const dates = [...new Set(data.rows.map(r => r.date))];
+  const d0 = Date.parse(p.date + 'T12:00:00Z');
   for (const d of dates) {
     for (let h = 0; h + dur <= 24; h++) {
+      if (d === p.date && h === p.from) continue;
       const rows = planRows({ date: d, from: h, to: h + dur });
-      if (rows[0].t.slice(0, 13) < nowT.slice(0, 13)) continue;
-      if (rows.some(r => verdict(r).level !== 0 || (!settings.night && isNight(r)))) continue;
-      const dist = Math.abs((tMs(rows[0].t) - tMs(`${p.date}T${pad2(p.from)}:00`)) / 3600e3);
-      out.push({ date: d, from: h, to: h + dur, dist });
+      if (rows.some(r => r.placeholder) || rows[0].t.slice(0, 13) < nowT.slice(0, 13)) continue;
+      if (rows.some(r => verdict(r).level !== 0)) continue;
+      const dark = rows.filter(isNight).length;
+      if (dark && !night && !planDark) continue;
+      const dayDiff = Math.abs(Date.parse(d + 'T12:00:00Z') - d0) / 86400000;
+      const wMax = mxOf(rows, 'wind'), gMax = mxOf(rows, 'gust'), wvMax = mxOf(rows, 'wave'), dm = demandOf(rows);
+      const why = [];
+      if (pDm && dm && dm.lvl < pDm.lvl) why.push(`${dm.t} במקום ${pDm.t}`);
+      if (isNum(pw) && isNum(wMax) && wMax <= pw - 2) why.push(`רוח עד ${fmt(wMax)} במקום ${fmt(pw)}`);
+      if (isNum(pg) && isNum(gMax) && gMax <= pg - 3) why.push(`משבים עד ${fmt(gMax)} במקום ${fmt(pg)}`);
+      if (isNum(pv) && isNum(wvMax) && wvMax <= pv - 0.15) why.push(`גלים עד ${CMx(wvMax)} במקום ${CMx(pv)} ס"מ`);
+      out.push({ date: d, from: h, to: h + dur, score: dayDiff * 8 + Math.abs(h - p.from) + (dark ? 12 : 0),
+        dark: dark === rows.length ? 'night' : dark ? 'part' : '', why: why.slice(0, 2).join(' · ') || 'כל השעות בתוך הספים שהגדרת' });
     }
   }
-  out.sort((a, b) => a.dist - b.dist);
+  out.sort((a, b) => a.score - b.score);
   const res = [];
-  for (const o of out) { if (!res.some(r => r.date === o.date)) res.push(o); if (res.length === 3) break; }
+  for (const o of out) {
+    if (res.filter(r => r.date === o.date).length >= 2 || res.some(r => r.date === o.date && o.from < r.to && r.from < o.to)) continue;
+    res.push(o); if (res.length === 3) break;
+  }
   return res;
 }
+const CMx = v => Math.round(v * 100);
 // אימות הגדרות: ערכים מספריים בטווח סביר; ערך לא תקין נשאר כמו שהיה
 const LIMITS = {
   maxWind: [3, 50, 'רוח עד'], maxGust: [3, 60, 'משבים עד'], maxWave: [0.2, 5, 'גלים עד'], minPeriod: [0, 15, 'מחזור גל מינימלי'],
