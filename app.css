@@ -488,6 +488,7 @@ body.modal-open { overflow: hidden; }
   .top { flex-wrap: wrap; row-gap: 0; }
   .brand { flex: 1 1 100%; }
   .top-actions { margin-inline-start: auto; }
+  #journal-btn { display: none; }   /* אין מקום – היומן זמין בקישור בתחתית */
   .dc-title { font-size: 1.25rem; }
   .day-tab { min-width: 0; padding-inline: 0.4rem; }
   .day-arrow { width: 1.75rem; }

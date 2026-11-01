@@ -8,104 +8,9 @@
    C. Takeout ישן (Semantic Location History): { timelineObjects: [{ activitySegment: { activityType, startLocation.latitudeE7, … } }] } */
 
 const $ = id => document.getElementById(id);
-const TZ = 'Asia/Jerusalem';
-const TYPE_HE = {
-  SAILING: 'שייט', IN_BOAT: 'בסירה', IN_FERRY: 'מעבורת', KAYAKING: 'קיאק', ROWING: 'חתירה', SURFING: 'גלישה',
-  WALKING: 'הליכה', RUNNING: 'ריצה', HIKING: 'טיול רגלי', CYCLING: 'רכיבה', IN_PASSENGER_VEHICLE: 'נהיגה', IN_VEHICLE: 'ברכב',
-  IN_TAXI: 'מונית', MOTORCYCLING: 'אופנוע', IN_BUS: 'אוטובוס', IN_TRAIN: 'רכבת', IN_SUBWAY: 'רכבת תחתית', IN_TRAM: 'רכבת קלה',
-  FLYING: 'טיסה', SKIING: 'סקי', STILL: 'במקום', UNKNOWN_ACTIVITY_TYPE: 'לא ידוע', UNKNOWN: 'לא ידוע'
-};
-const SAIL_RE = /SAIL|BOAT/;   // מסומן מראש
-const normType = t => String(t || 'UNKNOWN').trim().toUpperCase().replace(/[\s-]+/g, '_');
-const typeName = t => TYPE_HE[t] || t.toLowerCase().replace(/_/g, ' ');
-
-// קואורדינטות בכל הצורות: "32.1°, 34.8°" · "geo:32.1,34.8" · {latitudeE7,longitudeE7} · {latE7,lngE7} · {latLng:"…"}
-function ll(v) {
-  if (v == null) return null;
-  if (typeof v === 'string') {
-    const m = v.replace('geo:', '').match(/(-?\d+(?:\.\d+)?)\s*°?\s*,\s*(-?\d+(?:\.\d+)?)/);
-    return m ? [+m[1], +m[2]] : null;
-  }
-  if (typeof v === 'object') {
-    if (v.latLng) return ll(v.latLng);
-    if (v.point) return ll(v.point);
-    if (v.latitudeE7 != null) return [v.latitudeE7 / 1e7, v.longitudeE7 / 1e7];
-    if (v.latE7 != null) return [v.latE7 / 1e7, v.lngE7 / 1e7];
-  }
-  return null;
-}
-const ms = t => { const x = Date.parse(t); return Number.isFinite(x) ? x : null; };
-function distM(a, b) {
-  const R = 6371000, r = x => x * Math.PI / 180;
-  const dLa = r(b[0] - a[0]), dLo = r(b[1] - a[1]);
-  const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dLo / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-const pathLen = p => p.reduce((s, x, i) => i ? s + distM(p[i - 1], x) : 0, 0);
-
-// מפרק כל פורמט לרשימה אחידה: פעילויות + נקודות מסלול עם זמן
-function parse(json) {
-  const acts = [], points = [];
-  const segs = Array.isArray(json) ? json : Array.isArray(json.semanticSegments) ? json.semanticSegments : null;
-  if (segs) {
-    for (const s of segs) {
-      const st = ms(s.startTime), en = ms(s.endTime);
-      if (s.activity && st != null && en != null) {
-        const a = s.activity, tc = a.topCandidate || {};
-        acts.push({ type: normType(tc.type), prob: tc.probability != null ? +tc.probability : null, start: st, end: en,
-          a: ll(a.start), b: ll(a.end), dist: a.distanceMeters != null ? +a.distanceMeters : null, path: [] });
-      }
-      if (Array.isArray(s.timelinePath)) for (const p of s.timelinePath) {
-        const c = ll(p.point || p);
-        const t = p.time ? ms(p.time) : p.durationMinutesOffsetFromStartTime != null && st != null ? st + (+p.durationMinutesOffsetFromStartTime) * 60000 : null;
-        if (c && t != null) points.push([c[0], c[1], t]);
-      }
-    }
-    return { format: Array.isArray(json) ? 'אייפון' : 'אנדרואיד', acts, points };
-  }
-  if (Array.isArray(json.timelineObjects)) {
-    for (const o of json.timelineObjects) {
-      const a = o.activitySegment; if (!a || !a.duration) continue;
-      const st = ms(a.duration.startTimestamp) ?? +a.duration.startTimestampMs, en = ms(a.duration.endTimestamp) ?? +a.duration.endTimestampMs;
-      const path = [];
-      (a.simplifiedRawPath?.points || []).forEach(p => { const c = ll(p); const t = ms(p.timestamp) ?? +p.timestampMs; if (c) path.push([c[0], c[1], Number.isFinite(t) ? t : null]); });
-      if (!path.length) (a.waypointPath?.waypoints || []).forEach(p => { const c = ll(p); if (c) path.push([c[0], c[1], null]); });
-      acts.push({ type: normType(a.activityType), prob: null, start: st, end: en, a: ll(a.startLocation), b: ll(a.endLocation), dist: a.distance != null ? +a.distance : null, path });
-    }
-    return { format: 'Takeout ישן', acts, points };
-  }
-  throw new Error('זה לא נראה כמו קובץ ציר זמן של Google');
-}
-
-// מצמיד לכל פעילות את נקודות המסלול שבזמן שלה
-function attachPaths(acts, points) {
-  points.sort((x, y) => x[2] - y[2]);
-  for (const a of acts) {
-    if (!a.path.length) a.path = points.filter(p => p[2] >= a.start && p[2] <= a.end);
-    if (a.a && !(a.path[0] && distM(a.path[0], a.a) < 5)) a.path.unshift([a.a[0], a.a[1], a.start]);
-    if (a.b && !(a.path.length && distM(a.path[a.path.length - 1], a.b) < 5)) a.path.push([a.b[0], a.b[1], a.end]);
-    if (a.dist == null && a.path.length > 1) a.dist = pathLen(a.path);
-  }
-  return acts;
-}
+// הקריאה, הניקוי והשמירה – ב-timeline-parse.js (משותף עם היומן)
 
 let ALL = [], FMT = '';
-const fmtDate = t => new Date(t).toLocaleDateString('he-IL', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' });
-const fmtTime = t => new Date(t).toLocaleTimeString('he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-const durTxt = m => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return h ? `${h} ש׳ ${mm} ד׳` : `${mm} ד׳`; };
-const r5 = x => Math.round(x * 1e5) / 1e5;
-
-function miniPath(p) {
-  if (p.length < 2) return '<svg aria-hidden="true"></svg>';
-  const la = p.map(x => x[0]), lo = p.map(x => x[1]);
-  const k = Math.cos(la[0] * Math.PI / 180);
-  const x0 = Math.min(...lo), x1 = Math.max(...lo), y0 = Math.min(...la), y1 = Math.max(...la);
-  const w = Math.max((x1 - x0) * k, y1 - y0, 1e-6), W = 88, H = 56, pad = 5;
-  const sx = v => pad + ((v - x0) * k / w) * (W - 2 * pad), sy = v => H - pad - ((v - y0) / w) * (H - 2 * pad);
-  // ציר X הפוך בתצוגה מימין לשמאל? לא – ה-SVG מצויר משמאל לימין כמו מפה רגילה
-  return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true" style="direction:ltr"><polyline points="${p.map(x => `${sx(x[1]).toFixed(1)},${sy(x[0]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
-}
-
 function renderTypes() {
   const by = new Map();
   ALL.forEach(a => { const x = by.get(a.type) || { n: 0, d: 0 }; x.n++; x.d += a.dist || 0; by.set(a.type, x); });
@@ -155,8 +60,8 @@ $('file').addEventListener('change', async e => {
   ['types-sec', 'trips-sec', 'preview'].forEach(id => $(id).classList.add('hidden'));
   try {
     const json = JSON.parse(await f.text());
-    const { format, acts, points } = parse(json);
-    FMT = format; ALL = attachPaths(acts, points);
+    const { format, acts, points } = parseTimeline(json);
+    FMT = format; ALL = acts;
     if (!ALL.length) throw new Error('לא נמצאו בקובץ קטעי תנועה');
     $('status').textContent = `נקרא קובץ ${format}: ${ALL.length} קטעי תנועה, ${points.length} נקודות מסלול. הקובץ המלא נשאר בטלפון.`;
     renderTypes(); renderTrips();
@@ -175,6 +80,13 @@ try {
 } catch (_) {}
 $('share').addEventListener('click', async () => {
   try { await navigator.share({ files: [new File([outBlob()], outName(), { type: 'application/json' })], title: 'ההפלגות שלי' }); } catch (_) {}
+});
+// הוספה ישירה ליומן (באותו טלפון) – בלי להוריד קובץ
+$('to-journal').addEventListener('click', () => {
+  const j = loadJournal();
+  const r = addTrips(j, selected().map(a => toJournalTrip(a, 'google-timeline')));
+  if (!saveJournal(j)) { $('journal-msg').textContent = 'לא הצלחתי לשמור ביומן (הדפדפן חוסם שמירה).'; return; }
+  $('journal-msg').innerHTML = `נוספו ליומן ${r.added === 1 ? 'הפלגה אחת' : r.added + ' הפלגות'}${r.dup ? ` (${r.dup} כבר היו ביומן)` : ''}. <a href="journal.html">פתח את היומן ←</a>`;
 });
 $('show').addEventListener('click', () => {
   $('preview').classList.toggle('hidden');

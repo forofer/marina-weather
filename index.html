@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=5.4">
+  <link rel="stylesheet" href="app.css?v=5.5">
 </head>
 <body>
 <div class="app">
@@ -36,6 +36,7 @@
       <button id="view-windy" class="tab"><span class="ti" data-ico="map" data-s="22"></span><span class="tl">מפה</span></button>
     </nav>
     <div class="top-actions">
+      <a id="journal-btn" class="icon-btn" href="journal.html" title="יומן הפלגות" aria-label="יומן הפלגות"><span data-ico="book-open"></span></a>
       <button id="info-btn" class="icon-btn" title="מה זה האתר הזה?" aria-label="הסבר על האתר"><span data-ico="info"></span></button>
       <button id="theme-btn" class="icon-btn" title="מצב בהיר / כהה" aria-label="מצב בהיר או כהה"><span data-ico="sun-moon"></span></button>
       <button id="settings-btn" class="icon-btn" title="הגדרות" aria-label="הגדרות"><span data-ico="settings"></span></button>
@@ -173,15 +174,15 @@
   </section>
 
   <footer class="foot">
-    <span><a href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים של השירות המטאורולוגי</a> · <a id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a> · <a href="sailing-export.html">סינון הפלגות מציר הזמן (ניסיוני)</a></span>
+    <span><a href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים של השירות המטאורולוגי</a> · <a id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a> · <a href="journal.html">יומן הפלגות</a> · <a href="sailing-export.html">סינון הפלגות מציר הזמן</a></span>
     <span>נתונים: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · ECMWF · DWD · NOAA · אייקונים: Lucide</span>
   </footer>
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=5.4"></script>
-  <script src="core.js?v=5.4"></script>
-  <script src="data.js?v=5.4"></script>
-  <script src="app.js?v=5.4"></script>
+  <script src="icons.js?v=5.5"></script>
+  <script src="core.js?v=5.5"></script>
+  <script src="data.js?v=5.5"></script>
+  <script src="app.js?v=5.5"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
