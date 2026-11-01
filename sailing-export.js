@@ -123,7 +123,7 @@ function renderTrips() {
   if (!TRIPS.length) { $('trips').innerHTML = '<p class="muted">לא נמצאו קטעים מהסוגים שסומנו.</p>'; $('trips-sum').textContent = ''; updateButtons(); return; }
   $('trips').innerHTML = TRIPS.map((a, i) => `<label class="trip-row"><input type="checkbox" data-i="${i}" checked>
     <span class="meta"><b>${fmtDate(a.start)} · <bdi dir="ltr">${fmtTime(a.start)}–${fmtTime(a.end)}</bdi></b>
-    <small>${typeName(a.type)} · ${durTxt((a.end - a.start) / 60000)} · ${a.dist != null ? `${(a.dist / 1000).toFixed(1)} ק"מ (${(a.dist / 1852).toFixed(1)} מייל ימי)` : 'בלי מרחק'} · ${a.path.length} נקודות מסלול</small></span>
+    <small>${typeName(a.type)} · ${durTxt((a.end - a.start) / 60000)} · ${a.dist != null ? `${(a.dist / 1000).toFixed(1)} ק"מ (${(a.dist / 1852).toFixed(1)} מייל ימי)` : 'בלי מרחק'} · ${a.path.length === 1 ? 'נקודת מסלול אחת' : a.path.length + ' נקודות מסלול'}</small></span>
     ${miniPath(a.path)}</label>`).join('');
   $('trips').querySelectorAll('input').forEach(i => i.addEventListener('change', updateButtons));
   updateButtons();
