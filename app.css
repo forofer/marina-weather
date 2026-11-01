@@ -161,6 +161,7 @@ bdi { unicode-bidi: isolate; }
 .intro-more p { color: var(--ink-2); font-size: 0.875rem; margin: 0.35rem 0 0; }
 .banner { margin: 0 0 var(--gap); padding: 0.6rem 0.9rem; border-radius: var(--r-s); background: var(--maybe-soft); color: var(--maybe-ink); font-size: 0.875rem; }
 .banner.error { background: var(--nogo-soft); color: var(--nogo-ink); }
+.stale-hide { display: none !important; }
 .loading { padding: 2rem 1rem; text-align: center; color: var(--ink-2); }
 
 /* ===== רכיבים משותפים ===== */
@@ -526,6 +527,14 @@ body.modal-open { overflow: hidden; }
 .dc-more > summary { min-height: 2.5rem; font-size: 0.875rem; }
 .dc-more .note { margin-top: 0; }
 .decision .alert { margin-top: 0.5rem; padding-block: 0.45rem; }
+/* אופי הים */
+.demand { margin-top: 0.6rem; padding: 0.5rem 0.75rem; border-radius: var(--r-s); background: var(--surface-2); font-size: 0.9375rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.demand .dm-h { display: block; }
+.demand .dm-h .ico { color: var(--wave); margin-inline-end: 0.35rem; }
+.demand .dm-w { font-size: 0.8125rem; color: var(--ink-2); }
+.demand.dm2, .demand.dm3 { background: var(--maybe-soft); color: var(--maybe-ink); }
+.demand.dm2 .dm-h .ico, .demand.dm3 .dm-h .ico { color: var(--maybe); }
+.demand.dm2 .dm-w, .demand.dm3 .dm-w { color: var(--maybe-ink); }
 /* גשם: שורה קומפקטית, פרטים בלחיצה. גשם – כחול רגוע; סופת רעמים – התרעה */
 .rain { margin-top: 0.6rem; border-radius: var(--r-s); background: var(--rain-soft); color: var(--rain-ink); font-size: 0.9375rem; }
 .rain > summary { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.55rem 0.75rem; cursor: pointer; list-style: none; min-height: 2.75rem; }

@@ -103,8 +103,8 @@ test('כשהשעה הנוכחית לא מתאימה – הכותרת לא ירו
 console.log('עיגול וסף');
 test('ערך שמתעגל לסף מוצג בדיוק נוסף', () => {
   run(`settings = { ...DEFAULTS }`);
-  const t = run(`overText({k:'wave', v:1.34, max:1.3})`);
-  ok(/1\.34/.test(t), t);
+  ok(/גלים 134 ס״מ – מעל הסף שלך \(130\)/.test(run(`overText({k:'wave', v:1.34, max:1.3})`)), run(`overText({k:'wave', v:1.34, max:1.3})`));
+  ok(/130\.4 ס״מ/.test(run(`overText({k:'wave', v:1.304, max:1.3})`)), run(`overText({k:'wave', v:1.304, max:1.3})`));
 });
 test('אימות הגדרות דוחה ערכים לא תקינים', () => {
   const s = run(`validateSettings({ ...DEFAULTS, maxWind: -5, maxWave: 99, hourFrom: 20, hourTo: 3, windLat: 'abc' })`);
@@ -284,14 +284,46 @@ test('אנסמבל: ההסתברות מחושבת מהתרחישים התקינ�
 });
 
 console.log('עקביות');
-test('דיוק ליד הסף: 1.34 מול סף 1.3 מוצג 1.34, ו-1.26 מוצג 1.3', () => {
+test('גלים בס"מ, ודיוק ליד הסף: 1.34 → 134, 1.304 מול סף 130 → 130.4', () => {
   run(`settings = { ...DEFAULTS }`);
-  eq(run(`fmtTh(1.34, 'wave', 1)`), '1.34'); eq(run(`fmtTh(1.26, 'wave', 1)`), '1.3'); eq(run(`fmtTh(16.3, 'wind')`), '16.3');
+  eq(run(`fmtTh(1.34, 'wave', 1)`), '134'); eq(run(`fmtTh(1.304, 'wave', 1)`), '130.4'); eq(run(`fmtTh(0.7, 'wave', 1)`), '70'); eq(run(`fmtTh(16.3, 'wind')`), '16.3');
 });
 test('כיוון גלים נלקח מנתוני הגלים, לא מהרוח', () => {
   const t = run(`waveNote([{ waveDir: 280, dir: 90 }, { waveDir: 290, dir: 90 }])`);
   ok(/ממערב/.test(t) && /לכיוון החוף/.test(t), t);
   ok(!/גלים/.test(run(`coastNote(290)`)), 'coastNote לא קובע דבר על הגלים');
+});
+
+console.log('אופי הים');
+// התחזית שהסקיפר ראה ל-31/10 15:00 (ריצה מיום קודם), והים שתיאר: "ים חזק שצריך להיות מיומן בו"
+const CASE_3110 = { wind: 11.4, gust: 15.2, dir: 335, wave: 0.8, wavePer: 6.15, waveDir: 296, ww: 0.32, wwPer: 2.4, wwDir: 333, sw: 0.72, swPer: 5.8, swDir: 288,
+  models: { ECMWF: { wind: 12.5 }, ICON: { wind: 13 }, GFS: { wind: 8.6 } } };
+test('31/10 15:00: התחזית שנראתה "נוחה" מסווגת "ים מאתגר" (ים צולב)', () => {
+  run(`settings = { ...DEFAULTS }`); ctx.__c = CASE_3110;
+  const d = run(`seaDemand(__c)`);
+  eq(d.lvl, 2, JSON.stringify(d)); ok(/ים צולב/.test(d.why.join(' ')), d.why.join(' | '));
+  const v = run(`verdict({ ...__c, code: 2, vis: 20000 })`);
+  eq(v.level, 1); ok(/ים מאתגר – לסקיפר מיומן/.test(v.reasons.join(' ')), v.reasons.join(' | '));
+});
+test('31/10 עם הרוח שהייתה בפועל (16 קשר): עדיין "אפשר לצאת", לא "לא מומלץ"', () => {
+  ctx.__c = { ...CASE_3110, wind: 16, gust: 19 };
+  const d = run(`seaDemand(__c)`); ok(d.lvl >= 2, JSON.stringify(d));
+  ok(run(`verdict({ ...__c, code: 2, vis: 20000 }).level`) === 1, 'בזהירות – לא "לא מומלץ"');
+});
+test('יום שכולו "ים מאתגר": הכותרת "אפשר לצאת – ים מאתגר"', () => {
+  const o = {}; for (let h = 0; h < 24; h++) o[h] = { wind: 11.4, gust: 15, wave: 0.8, wavePer: 6, ww: 0.32, wwDir: 333, sw: 0.72, swDir: 288 };
+  setData(day('2026-11-02', o), '2026-11-02T05:00');
+  const hs = run(`heroStatus('2026-11-02')`);
+  ok(/^אפשר לצאת – ים מאתגר/.test(hs.title), hs.title); ok(/לסקיפר מיומן/.test(hs.why), hs.why);
+});
+test('ים שקט: "ים נוח", בלי השפעה על ההמלצה', () => {
+  ctx.__c = { wind: 8, gust: 11, wave: 0.35, wavePer: 6, ww: 0.1, wwDir: 300, sw: 0.3, swDir: 290 };
+  eq(run(`seaDemand(__c).lvl`), 0); eq(run(`verdict({ ...__c, code: 1, vis: 20000 }).level`), 0);
+});
+test('אפשר לכבות את שיקול אופי הים בהגדרות', () => {
+  ctx.__c = CASE_3110; run(`settings = { ...DEFAULTS, seaCharacter: false }`);
+  eq(run(`verdict({ ...__c, code: 2, vis: 20000 }).level`), 0);
+  run(`settings = { ...DEFAULTS }`);
 });
 
 console.log(`\n${pass} עברו, ${fail} נכשלו`);

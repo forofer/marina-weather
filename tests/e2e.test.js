@@ -8,7 +8,7 @@ const FIXED = Date.parse('2026-10-30T10:30:00+02:00');
 let pass = 0, fail = 0;
 const ok = (c, name, extra = '') => { if (c) { pass++; console.log('  ✓ ' + name); } else { fail++; console.log('  ✗ ' + name + ' ' + extra); } };
 
-async function open(b, { vp = { width: 390, height: 844 }, scheme = 'light', marine = 'ok', font = 100, fixed = true, data: dm = null, ens = null } = {}) {
+async function open(b, { vp = { width: 390, height: 844 }, scheme = 'light', marine = 'ok', font = 100, fixed = true, data: dm = null, ens = null, seaCharacter = false } = {}) {
   const D = dm || mock;
   const mobile = vp.width < 900;
   const ctx = await b.newContext({ viewport: vp, isMobile: mobile, hasTouch: mobile, colorScheme: scheme, timezoneId: 'Asia/Jerusalem', reducedMotion: 'reduce' });
@@ -16,6 +16,8 @@ async function open(b, { vp = { width: 390, height: 844 }, scheme = 'light', mar
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   if (font !== 100) { const s = await ctx.newCDPSession(p); await s.send('Page.enable'); await s.send('Page.setFontSizes', { fontSizes: { standard: 16 * font / 100, fixed: 13 * font / 100 } }); }
   if (fixed) await p.addInitScript(t => { const R = Date; class D extends R { constructor(...a) { a.length ? super(...a) : super(t); } static now() { return t; } } window.Date = D; try { localStorage.setItem('introSeen', '1'); } catch (_) {} }, FIXED);
+  // רוב הבדיקות בודקות מנגנון (חלונות, תכנון, ניווט) – עם אופי הים כבוי, כדי שנתוני הדמה יכללו שעות "מתאים". יש בדיקות ייעודיות כשהוא פעיל
+  if (!seaCharacter) await p.addInitScript(() => { try { if (!localStorage.getItem('settings_v3')) localStorage.setItem('settings_v3', JSON.stringify({ seaCharacter: false })); } catch (_) {} });
   await p.route(/goatcounter|zgo|fonts\.|openseamap|arcgis/, r => r.abort());
   await p.route('**/api.open-meteo.com/**', r => r.fulfill({ json: r.request().url().includes('models=') ? D.md : D.fc }));
   await p.route('**/marine-api.open-meteo.com/**', r => marine === 'fail' ? r.fulfill({ status: 500, json: { reason: 'down' } }) : r.fulfill({ json: D.mr }));
@@ -57,7 +59,7 @@ const clipped = p => p.evaluate(() => {
 
   console.log('נתונים ישנים ובלי רשת');
   {
-    const { p, ctx, errs } = await open(b, { fixed: false });
+    const { p, ctx, errs } = await open(b);
     ok(/התחזית נמשכה/.test(await txt(p, '#updated')), 'מוצג גיל הנתונים');
     await p.unrouteAll(); await p.route(/open-meteo|goatcounter|zgo|fonts\./, r => r.abort('internetdisconnected'));
     await p.addInitScript(() => { const n = Date.now; Date.now = () => n() + 5 * 3600e3; });
@@ -221,6 +223,43 @@ const clipped = p => p.evaluate(() => {
     ok(/אין נתוני גשם/.test(await txt(p, '#hour-card .rain-miss')) && !(await p.$('#hour-card .rain')), 'נתוני גשם חסרים: הודעה שקטה, לא "יבש"');
     await p.click('#view-table'); await p.waitForTimeout(200);
     ok(await p.$$eval('.fc tbody tr', trs => { const tr = trs.find(t => /גשם \(מ"מ\)/.test(t.textContent)); return !!tr && /\?/.test(tr.textContent); }), 'בטבלה: גשם חסר מוצג "?" ולא 0');
+    await ctx.close();
+  }
+
+  console.log('אופי הים (המקרה של 31/10)');
+  {
+    const SM = require('./mock-sea.js');
+    const { p, ctx, errs } = await open(b, { data: SM, seaCharacter: true });
+    const dl = await txt(p, '#hour-card .demand');
+    ok(/אופי הים: ים מאתגר – לסקיפר מיומן וצוות שמכיר את הסירה/.test(dl) && /ים צולב/.test(dl), 'כרטיס השעה: "ים מאתגר – לסקיפר מיומן", עם הסיבה (ים צולב)', dl);
+    ok(/בזהירות/.test(await txt(p, '#hour-card .pill')), 'השעה מסומנת "בזהירות" ולא "מתאים"');
+    const wm = await p.$$eval('#hour-card .metric', m => m.map(x => x.innerText.replace(/\s+/g, ' ')));
+    ok(/גלים 80 ס״מ/.test(wm[2]), 'גלים מוצגים בס"מ: 80 ס"מ', wm[2]);
+    ok(/המודלים: .?9–13/.test(wm[0]), 'הרוח מציגה את טווח המודלים כשהם חלוקים', wm[0]);
+    await p.click('#view-plan'); await p.waitForTimeout(200);
+    await p.selectOption('#p-date', '2026-10-30'); await p.selectOption('#p-from', '11'); await p.selectOption('#p-to', '14'); await p.waitForTimeout(250);
+    ok(/^אפשר לצאת – ים מאתגר/.test(await txt(p, '#p-result .dc-title')) && /לסקיפר מיומן/.test(await txt(p, '#p-result .dc-why')), 'תכנון: אותה כותרת כמו בסיכום – "אפשר לצאת – ים מאתגר"', await txt(p, '#p-result .dc-title'));
+    await p.evaluate(() => { window.__shared = ''; navigator.clipboard.writeText = t => { window.__shared = t; return Promise.resolve(); }; });
+    await p.click('#p-copy'); await p.waitForTimeout(150);
+    const sh = await p.evaluate(() => window.__shared);
+    ok(/⚠️ אפשר לצאת – ים מאתגר/.test(sh) && /אופי הים: ים מאתגר – לסקיפר מיומן/.test(sh) && /גלים 80 ס"מ/.test(sh), 'השיתוף כולל אותה כותרת, אופי ים וגלים בס"מ', sh);
+    ok(errs.length === 0, 'אין שגיאות JS', errs.join(' | '));
+    await ctx.close();
+  }
+  {
+    const SM = require('./mock-sea.js');
+    const { p, ctx } = await open(b, { data: SM });   // אופי הים כבוי בהגדרות
+    ok(/מתאים/.test(await txt(p, '#hour-card .pill')) && /ים מאתגר/.test(await txt(p, '#hour-card .demand')), 'כשהשיקול כבוי: ההמלצה לפי הספים בלבד, ואופי הים עדיין מוצג כמידע');
+    await ctx.close();
+  }
+
+  console.log('תחזית שמורה מימים שעברו');
+  {
+    const { p, ctx, errs } = await open(b, { fixed: false }); // השעון האמיתי אחרי ימי הדמה
+    const real = await p.evaluate(() => new Date().toISOString().slice(0, 10));
+    if (real > '2026-10-31') {
+      ok(/ישנה מדי/.test(await txt(p, '#loading')) && errs.length === 0, 'אין קריסה – מוצגת הודעה שהתחזית ישנה מדי', errs.join('|'));
+    } else ok(true, 'השעון עדיין בטווח ימי הדמה – הבדיקה לא רלוונטית');
     await ctx.close();
   }
 

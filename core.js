@@ -4,7 +4,7 @@
 const DEFAULTS = {
   windLat: 32.165, windLon: 34.785,   // מרינה הרצליה
   waveLat: 32.170, waveLon: 34.760,   // ים פתוח ~2.5 ק"מ מערבית למרינה
-  maxWind: 16, maxGust: 22, maxWave: 1.3, minPeriod: 5,
+  maxWind: 16, maxGust: 22, maxWave: 1.3, minPeriod: 5, seaCharacter: true,
   hourFrom: 6, hourTo: 21, step: 1, showModels: true, night: true
 };
 const TZ = 'Asia/Jerusalem';
@@ -35,17 +35,23 @@ function whenWords(date) {
 // ערך מול סף: כשהערך מעל הסף אבל העיגול היה משווה אותו לסף – מוסיפים ספרה (1.34 ולא 1.3)
 const THR_KEY = { wind: 'maxWind', gust: 'maxGust', wave: 'maxWave' };
 function fmtTh(v, k, d0 = 0) {
+  if (k === 'wave') { // גלים מוצגים בס"מ
+    if (!isNum(v)) return '–';
+    const c = v * 100, mc = settings.maxWave * 100;
+    return c > mc && Math.round(c) <= Math.round(mc) ? fmt(c, 1) : fmt(c, 0);
+  }
   const max = settings[THR_KEY[k]];
   if (!isNum(v) || !isNum(max) || v <= max) return fmt(v, d0);
   let d = d0; while (d < d0 + 2 && +Number(v).toFixed(d) <= +Number(max).toFixed(d)) d++;
   return fmt(v, d);
 }
-const OVER_NAME = { wind: ['רוח', 'קשר', 0], gust: ['משבים', 'קשר', 0], wave: ['גלים', 'מ׳', 1] };
+const OVER_NAME = { wind: ['רוח', 'קשר', 0, 1], gust: ['משבים', 'קשר', 0, 1], wave: ['גלים', 'ס״מ', 0, 100] };
 function overText(o) {
-  const [name, unit, d0] = OVER_NAME[o.k];
+  const [name, unit, d0, k] = OVER_NAME[o.k];
+  const v = o.v * k, max = o.max * k;
   let d = d0;
-  while (d < d0 + 2 && +Number(o.v).toFixed(d) <= +Number(o.max).toFixed(d)) d++;
-  return `${name} ${fmt(o.v, d)} ${unit} – מעל הסף שלך (${o.max})`;
+  while (d < d0 + 2 && +Number(v).toFixed(d) <= +Number(max).toFixed(d)) d++;
+  return `${name} ${fmt(v, d)} ${unit} – מעל הסף שלך (${fmt(max, 0)})`;
 }
 // סיבות בשפה פשוטה: לכל סוג חריגה – הערך הגבוה ביותר מול הסף
 function plainReasons(rows) {
@@ -77,6 +83,12 @@ function heroStatus(date) {
     later = `חלון מתאים: ${winTxt}`;
   } else if (lvl === 0) {
     later = `${isToday ? 'השעות המתאימות שנותרו היום' : 'השעות המתאימות'}: ${winTxt}`;
+  } else if (lvl === 1 && rows.every(r => verdict(r).reasons.every(isDemandReason))) {
+    // רק אופי הים מונע "מתאים": אפשר לצאת – להיות מוכנים
+    const dm = demandOf(rows);
+    title = `אפשר לצאת – ${dm.t}`;
+    why = `${dm.d}: ${dm.why.slice(0, 2).join(' · ')}`;
+    later = wins.length ? `שעות נוחות יותר: ${winTxt}` : '';
   } else {
     why = 'כי צפויים: ' + plainReasons(rows).slice(0, 2).join(' · ');
     later = wins.length ? `שעות מתאימות בכל זאת: ${winTxt}` : 'אין שעות מתאימות ביום הזה';
@@ -105,6 +117,53 @@ const DRIZZLE_MM = 0.1; // טפטוף / טיפות בודדות
 // 0 מתאים · 1 בזהירות · 2 לא מומלץ · 3 אין מספיק נתונים
 const NODATA = 3;
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
+/* ===================== אופי הים: כמה מיומנות הים דורש =====================
+ נפרד מהספים שלך: ים בתוך הספים עדיין יכול להיות מאתגר. רמות:
+   0 נוח · 1 בינוני (תנועה מורגשת) · 2 מאתגר (לסקיפר מיומן וצוות שמכיר את הסירה) · 3 קשה (לצוות מנוסה מאוד בלבד)
+ רכיבים (הגבוה קובע, ואז תוספות):
+   רוח – הגבוהה מבין התחזית והמודלים (המודלים ממעיטים לעתים בהתחזקות של אחר הצהריים ליד החוף):
+     עד 11 קשר 0 · 11–15 → 1 · 15–20 → 2 · 20+ → 3.  משבים: 17+ → 1 · 20+ → 2 · 26+ → 3
+   גלים (ס"מ): עד 50 → 0 · 50–90 → 1 · 90–150 → 2 · 150+ → 3
+   +1 ים צולב: גלי רוח ≥25 ס"מ וסוול ≥40 ס"מ מכיוונים שונים ב-35° ומעלה
+   +1 גלים קצרים ותלולים: 60 ס"מ ומעלה במחזור קצר מ-5 שניות
+ נבנה מול הפלגה אמיתית ב-31/10 15:00–17:00: סוול 70 ס"מ + גלי רוח קצרים מכיוון אחר + רוח שהתחזקה ל-16 קשר
+ = "ים חזק שצריך להיות מיומן בו" לפי הסקיפר. */
+const DEMAND = [
+  { t: 'ים נוח', d: '' },
+  { t: 'ים בינוני', d: 'תנועה מורגשת' },
+  { t: 'ים מאתגר', d: 'לסקיפר מיומן וצוות שמכיר את הסירה' },
+  { t: 'ים קשה', d: 'לצוות מנוסה מאוד בלבד' }
+];
+const angDiff = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
+const cmOf = v => isNum(v) ? Math.round(v * 100) : null;
+function seaDemand(r) {
+  if (!r || (!isNum(r.wind) && !isNum(r.wave))) return null;
+  const winds = [r.wind, ...Object.values(r.models || {}).map(m => m.wind)].filter(isNum);
+  const wHi = winds.length ? Math.max(...winds) : null, wLo = winds.length ? Math.min(...winds) : null;
+  const split = winds.length >= 2 && wHi - wLo >= 4;
+  const why = [];
+  let base = 0;
+  const at = (l, t) => { if (l > base) base = l; if (l >= 1 && t) why.push(t); };
+  if (isNum(wHi)) at(wHi >= 20 ? 3 : wHi >= 15 ? 2 : wHi >= 11 ? 1 : 0, split ? `רוח עד ${fmt(wHi)} קשר לפי חלק מהמודלים (${fmt(wLo)}–${fmt(wHi)})` : `רוח ${fmt(wHi)} קשר`);
+  if (isNum(r.gust)) at(r.gust >= 26 ? 3 : r.gust >= 20 ? 2 : r.gust >= 17 ? 1 : 0, `משבים ${fmt(r.gust)} קשר`);
+  const cm = cmOf(r.wave);
+  if (cm != null) at(cm >= 150 ? 3 : cm >= 90 ? 2 : cm >= 50 ? 1 : 0, `גלים ${cm} ס"מ`);
+  let extra = 0;
+  if (isNum(r.ww) && isNum(r.sw) && isNum(r.wwDir) && isNum(r.swDir) && r.ww >= 0.25 && r.sw >= 0.4 && angDiff(r.wwDir, r.swDir) >= 35) {
+    extra++; why.push(`ים צולב: סוול ${cmOf(r.sw)} ס"מ ${from8(r.swDir)} וגלי רוח קצרים ${from8(r.wwDir)}`);
+  }
+  if (cm != null && cm >= 60 && isNum(r.wavePer) && r.wavePer < 5) { extra++; why.push(`גלים קצרים ותלולים (${fmt(r.wavePer)} שנ׳)`); }
+  const lvl = Math.min(3, base + extra);
+  return { lvl, t: DEMAND[lvl].t, d: DEMAND[lvl].d, why: lvl ? why : [], wHi, wLo, split };
+}
+// אופי הים לטווח שעות: הרמה הגבוהה, והסיבות שלה
+function demandOf(rows) {
+  let best = null;
+  rows.forEach(r => { const d = seaDemand(r); if (d && (!best || d.lvl > best.lvl)) best = d; });
+  return best;
+}
+const isDemandReason = x => /^ים (מאתגר|קשה)/.test(x);
+
 function verdict(r) {
   const s = settings;
   const reasons = [], over = [];
@@ -124,6 +183,8 @@ function verdict(r) {
     if (isNum(r.wavePer) && r.wave >= s.maxWave * 0.7 && r.wavePer < s.minPeriod) bump(1, 'ים קצר ותלול');
   }
   if (isNum(r.vis) && r.vis < 2000) bump(1, 'ראות נמוכה');
+  // אופי הים: ים מאתגר או קשה – "אפשר לצאת, להיות מוכנים" (לא "לא מומלץ")
+  if (s.seaCharacter !== false) { const dm = seaDemand(r); if (dm && dm.lvl >= 2) bump(1, `${dm.t} – ${dm.d}`); }
   if (isNum(r.cape) && r.cape > 1000 && (r.pop ?? 0) > 30) bump(1, 'סיכון לרעמים');
   // נתון חיוני חסר: אי אפשר להמליץ – אלא אם כבר ידוע שזה "לא מומלץ"
   if (missing.length) {
@@ -551,5 +612,6 @@ function validateSettings(input, prev = DEFAULTS) {
   out.step = [1, 2, 3].includes(+input.step) ? +input.step : prev.step;
   out.showModels = !!input.showModels;
   out.night = input.night !== undefined ? !!input.night : prev.night;
+  out.seaCharacter = input.seaCharacter !== undefined ? !!input.seaCharacter : prev.seaCharacter !== false;
   return { s: out, errors };
 }

@@ -38,6 +38,8 @@ function boxWidth(id) {
   const el = $(id); const w = el ? el.clientWidth : 0;
   return w || Math.min(1100, (document.documentElement.clientWidth || 800) - 64);
 }
+const CM = v => isNum(v) ? fmt(v * 100) : '–';
+const cmRange = (a, b) => (a == null) ? '–' : (Math.abs(a - b) < 0.05 ? CM(b) : `\u2066${CM(a)}\u2060–\u2060${CM(b)}\u2069`);
 const remPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
 /* ===================== רכיבים משותפים ===================== */
@@ -59,6 +61,11 @@ function metric({ icon, label, value, unit, dir, sub, over, lvl, title }) {
     ${dir != null ? `<div class="m-dir">${dirArrow(dir)}<span class="nowrap">${from8(dir)}</span></div>` : ''}
     ${sub ? `<div class="m-sub">${sub}</div>` : ''}
   </div>`;
+}
+// אופי הים – שורה עם רמה, למי מתאים ולמה. ים נוח – בלי שורה
+function demandLine(dm, { label = 'אופי הים' } = {}) {
+  if (!dm || dm.lvl === 0) return '';
+  return `<div class="demand dm${dm.lvl}"><span class="dm-h">${ico('waves', 18)}<b>${label}: ${dm.t}</b>${dm.d ? ` – ${dm.d}` : ''}</span>${dm.why.length ? `<span class="dm-w">${dm.why.slice(0, 3).join(' · ')}</span>` : ''}</div>`;
 }
 // כרטיס גשם משותף: מוצג רק כשיש גשם רלוונטי או כשחסרים נתונים. "יבש" לא מציג כלום
 function rainCard(rs, { after = false } = {}) {
@@ -206,10 +213,11 @@ function hourMetrics(r) {
   const over = k => v.over.find(o => o.k === k);
   const val = (k, d) => { const o = over(k); return o ? fmt(r[k], overDigits(r[k], o.max, d)) : fmt(r[k], d); };
   const ow = over('wind'), og = over('gust'), ov = over('wave');
+  const dm = seaDemand(r);
   return `<div class="metrics">
-    ${metric({ icon: 'wind', label: 'רוח', value: val('wind', 0), unit: 'קשר', dir: r.dir, sub: ow ? `מעל הסף שלך: ${ow.max}` : '', over: !!ow, lvl: lv, title: r.dir != null ? `הרוח נושבת ${from8(r.dir)} (${Math.round(r.dir)}°). החץ מראה לאן היא נושבת.` : '' })}
+    ${metric({ icon: 'wind', label: 'רוח', value: val('wind', 0), unit: 'קשר', dir: r.dir, sub: ow ? `מעל הסף שלך: ${ow.max}` : (dm && dm.split ? `המודלים: ${bdi(fmt(dm.wLo) + '–' + fmt(dm.wHi))}` : ''), over: !!ow, lvl: lv, title: r.dir != null ? `הרוח נושבת ${from8(r.dir)} (${Math.round(r.dir)}°). החץ מראה לאן היא נושבת.` : '' })}
     ${metric({ icon: 'gauge', label: 'משבים', value: val('gust', 0), unit: 'קשר', sub: og ? `מעל הסף שלך: ${og.max}` : (r.gust != null && r.wind != null && r.gust - r.wind >= 8 ? `${fmt(r.gust - r.wind)} מעל הרוח` : ''), over: !!og, lvl: lv })}
-    ${metric({ icon: 'waves', label: 'גלים', value: val('wave', 1), unit: 'מטר', dir: r.waveDir, sub: ov ? `מעל הסף שלך: ${ov.max}` : (r.wavePer != null ? `מחזור ${fmt(r.wavePer)} שנ׳` : ''), over: !!ov, lvl: lv, title: 'גובה גל משמעותי: הממוצע של השליש הגבוה מהגלים. גלים בודדים יכולים להיות גבוהים יותר.' })}
+    ${metric({ icon: 'waves', label: 'גלים', value: fmtTh(r.wave, 'wave'), unit: 'ס״מ', dir: r.waveDir, sub: ov ? `מעל הסף שלך: ${CM(ov.max)}` : (r.wavePer != null ? `מחזור ${fmt(r.wavePer)} שנ׳` : ''), over: !!ov, lvl: lv, title: 'גובה גל משמעותי: הממוצע של השליש הגבוה מהגלים. גלים בודדים יכולים להיות גבוהים יותר.' })}
   </div>`;
 }
 
@@ -239,7 +247,8 @@ function renderHourCard() {
   el.innerHTML = `
     <div class="hc-head"><h2 class="sec-h" id="hc-title">תחזית לשעה ${bdi(hm(r.hour))}${isNow ? ' <span class="hc-now">· השעה הקרובה</span>' : ''}</h2>${pill(v.level, SHORT[v.level])}</div>
     ${hourMetrics(r)}
-    ${extraReasons.length ? `<p class="hc-why lv${v.level}">${extraReasons.join(' · ')}</p>` : ''}
+    ${extraReasons.filter(x => !isDemandReason(x)).length ? `<p class="hc-why lv${v.level}">${extraReasons.filter(x => !isDemandReason(x)).join(' · ')}</p>` : ''}
+    ${demandLine(seaDemand(r))}
     ${rainCard(rain)}
     <div class="pick-head"><span class="pick-l" id="pick-hour-l">בחר שעה</span>${canNow ? `<button class="btn quiet sm" id="hour-now">${ico('clock', 16)}חזרה לשעה הנוכחית</button>` : ''}</div>
     <div class="hours" role="tablist" aria-labelledby="pick-hour-l">${chips}</div>
@@ -330,15 +339,15 @@ function trendChart(target, rows, { sel = null, onPick = null, dimPast = false, 
   if (selI >= 0) g += `<rect x="${left + cw * selI}" y="${yW0 - 2}" width="${cw}" height="${H - yW0 + 2}" rx="4" style="fill:var(--accent-soft)"/>`;
   // רשת וערכי ציר
   for (let v = 0; v <= wTop; v += wStep) g += `<line x1="${left}" x2="${W - right}" y1="${yw(v)}" y2="${yw(v)}" style="stroke:var(--line)" stroke-width="1"/><text x="${left - 6}" y="${yw(v) + 4}" text-anchor="end">${v}</text>`;
-  for (let v = 0; v <= vTop + 1e-9; v += vStep) g += `<line x1="${left}" x2="${W - right}" y1="${yv(v)}" y2="${yv(v)}" style="stroke:var(--line)" stroke-width="1"/><text x="${left - 6}" y="${yv(v) + 4}" text-anchor="end">${fmt(v, vStep < 1 ? 1 : 0)}</text>`;
+  for (let v = 0; v <= vTop + 1e-9; v += vStep) g += `<line x1="${left}" x2="${W - right}" y1="${yv(v)}" y2="${yv(v)}" style="stroke:var(--line)" stroke-width="1"/><text x="${left - 6}" y="${yv(v) + 4}" text-anchor="end">${CM(v)}</text>`;
   // כותרות רצועות (בתוך הגרף, צמודות לימין)
   g += `<text x="${W - right}" y="${yW0 - 6}" text-anchor="start" direction="rtl" class="ax">רוח ומשבים · קשר</text>`;
-  g += `<text x="${W - right}" y="${yV0 - 6}" text-anchor="start" direction="rtl" class="ax">גלים · מטר</text>`;
+  g += `<text x="${W - right}" y="${yV0 - 6}" text-anchor="start" direction="rtl" class="ax">גלים · ס״מ</text>`;
   // ספים
   const thr = (y, label) => `<line x1="${left}" x2="${W - right}" y1="${y}" y2="${y}" style="stroke:var(--thr)" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W - right - 2}" y="${y - 4}" class="thr-l" text-anchor="start" direction="rtl">${label}</text>`;
   g += thr(yw(settings.maxWind), `הסף שלך לרוח: ${settings.maxWind}`);
   if (Math.abs(yw(settings.maxGust) - yw(settings.maxWind)) > 14 * fs) g += thr(yw(settings.maxGust), `למשבים: ${settings.maxGust}`);
-  g += thr(yv(settings.maxWave), `הסף שלך: ${settings.maxWave}`);
+  g += thr(yv(settings.maxWave), `הסף שלך: ${CM(settings.maxWave)}`);
   // קווי רוח ומשבים – בלי החלקה, עם רווח כשאין נתון
   const poly = k => { const segs = []; let cur = []; rows.forEach((r, i) => { if (r[k] == null) { if (cur.length) segs.push(cur); cur = []; } else cur.push(`${cx(i).toFixed(1)},${yw(r[k]).toFixed(1)}`); }); if (cur.length) segs.push(cur); return segs; };
   poly('gust').forEach(s => { g += `<polyline points="${s.join(' ')}" fill="none" style="stroke:var(--gust)" stroke-width="2" stroke-dasharray="5 3" stroke-linejoin="round"/>`; });
@@ -369,7 +378,7 @@ function trendChart(target, rows, { sel = null, onPick = null, dimPast = false, 
     if (show) g += `<text x="${cx(i)}" y="${yA + 14 * fs}" text-anchor="middle" class="ax${isSel ? ' sel' : ''}">${pad2(r.hour)}</text>`;
   });
   const r0 = selI >= 0 ? rows[selI] : null;
-  const read = r0 ? `<div class="trend-read" aria-live="polite"><span class="h">${hm(r0.hour)}</span><span>רוח <b>${fmtTh(r0.wind, 'wind')}</b></span><span>משבים <b>${fmtTh(r0.gust, 'gust')}</b> קשר</span><span>גלים <b>${fmtTh(r0.wave, 'wave', 1)}</b> מ׳</span>${rainHour(r0).wet ? `<span>גשם <b>${isNum(r0.rain) ? fmt(r0.rain, 1) + ' מ"מ' : '?'}</b>${rainProb(r0) ? ` · ${rainProb(r0).p}%` : ''}</span>` : ''}</div>` : '';
+  const read = r0 ? `<div class="trend-read" aria-live="polite"><span class="h">${hm(r0.hour)}</span><span>רוח <b>${fmtTh(r0.wind, 'wind')}</b></span><span>משבים <b>${fmtTh(r0.gust, 'gust')}</b> קשר</span><span>גלים <b>${fmtTh(r0.wave, 'wave')}</b> ס״מ</span>${rainHour(r0).wet ? `<span>גשם <b>${isNum(r0.rain) ? fmt(r0.rain, 1) + ' מ"מ' : '?'}</b>${rainProb(r0) ? ` · ${rainProb(r0).p}%` : ''}</span>` : ''}</div>` : '';
   const sw = (c, dash, w = 2.5) => `<svg width="22" height="8" aria-hidden="true"><line x1="1" x2="21" y1="4" y2="4" style="stroke:${c}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''}/></svg>`;
   el.innerHTML = `${read}
     <svg class="trend-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="גרף רוח, משבים וגלים לפי שעה">${g}</svg>
@@ -405,7 +414,7 @@ function renderWeekList() {
       f('חלון', bw ? `<b>${span(bw.start, bw.end)}</b>` : 'אין') +
       f('רוח', `<b>${range(mn('wind'), mx('wind'))}</b> קשר`) +
       f('משבים עד', `<b>${fmtTh(mx('gust'), 'gust')}</b> קשר`) +
-      f('גלים עד', `<b>${fmtTh(mx('wave'), 'wave', 1)}</b> מ׳`);
+      f('גלים עד', `<b>${fmtTh(mx('wave'), 'wave')}</b> ס״מ`);
     return `<button class="wk-item lv${lvl}${d === selectedDate ? ' sel' : ''}" data-date="${d}" aria-label="${n.name} ${n.date}: ${st}">
       <span class="wk-ico">${stIco(lvl, 18)}</span>
       <span class="wk-day">${n.name}<small>${n.name === 'היום' || n.name === 'מחר' ? n.sub : n.date}</small></span>
@@ -430,7 +439,7 @@ function renderWeek() {
       const v = verdict(r);
       const past = r.t.slice(0, 13) < nowT.slice(0, 13) ? ' past' : '';
       const inTrip = trips.some(t => t.date === d && h >= t.from && h < t.to) ? ' trip-cell' : '';
-      return `<td class="lv${v.level}${isNight(r) ? ' night' : ''}${past}${inTrip}" title="${pad2(h)}:00 · ${VERDICT[v.level].t} · רוח ${fmt(r.wind)} משבים ${fmt(r.gust)} קשר ${from8(r.dir)} · גלים ${fmt(r.wave, 1)} מ׳${v.reasons.length ? ' · ' + v.reasons.join(', ') : ''}">${arrowTxt(r.dir)}${fmt(r.wind)}</td>`;
+      return `<td class="lv${v.level}${isNight(r) ? ' night' : ''}${past}${inTrip}" title="${pad2(h)}:00 · ${VERDICT[v.level].t} · רוח ${fmt(r.wind)} משבים ${fmt(r.gust)} קשר ${from8(r.dir)} · גלים ${CM(r.wave)} ס״מ${v.reasons.length ? ' · ' + v.reasons.join(', ') : ''}">${arrowTxt(r.dir)}${fmt(r.wind)}</td>`;
     }).join('') + `<td class="wl">${n.name}<small>${n.date}</small></td></tr>`;
   }
   $('week').innerHTML = html + '</tbody></table>';
@@ -454,7 +463,7 @@ function renderSummaryRow() {
   const sunset = s.sun ? s.sun.sunset.slice(11) : null;
   const chip = (k, v, u = '') => `<span class="chip">${k} <b>${bdi(v)}</b>${u}</span>`;
   $('summary').innerHTML = `${pill(lvl, title)}<span class="chip">${n.full}</span><span class="sep" aria-hidden="true"></span>
-    ${chip('רוח עד', fmtTh(s.maxWind, 'wind'), ' קשר')}${chip('משבים עד', fmtTh(s.maxGust, 'gust'), ' קשר')}${chip('גלים עד', fmtTh(s.maxWave, 'wave', 1), ' מ׳')}
+    ${chip('רוח עד', fmtTh(s.maxWind, 'wind'), ' קשר')}${chip('משבים עד', fmtTh(s.maxGust, 'gust'), ' קשר')}${chip('גלים עד', fmtTh(s.maxWave, 'wave'), ' ס״מ')}
     ${sunset ? chip('שקיעה', sunset) : ''}${isNum(s.sst) ? chip('מים', fmt(s.sst) + '°') : ''}
     ${s.thunder ? `<span class="pill lv2">${ico('cloud-lightning', 16)}רעמים</span>` : ''}`;
 }
@@ -479,11 +488,12 @@ function renderTable() {
     if (modelsOpen) for (const m of MODELS) h += row(`${m.name} · רוח/משב`, r => { const v = r.models[m.name]; return cell(r, v ? `${fmt(v.wind)}<span class="sub">/${fmt(v.gust)}</span>` : '–'); }, 'mrow');
   }
   h += grp('ים');
-  h += row('<span title="גובה גל משמעותי: הממוצע של השליש הגבוה מהגלים">גלים (מ׳)</span>', r => cell(r, fmtTh(r.wave, 'wave', 1), ov(r, 'wave')));
+  h += row('<span title="גובה גל משמעותי: הממוצע של השליש הגבוה מהגלים">גלים (ס״מ)</span>', r => cell(r, fmtTh(r.wave, 'wave'), ov(r, 'wave')));
   h += row('מחזור (שנ׳)', r => cell(r, fmt(r.wavePer, 1), (r.wavePer != null && r.wavePer < settings.minPeriod && (r.wave ?? 0) >= settings.maxWave * 0.7) ? ' ov1' : ''));
   h += row('כיוון גלים', r => cell(r, `${arrowTxt(r.waveDir)}<span class="sub">${compass(r.waveDir)}</span>`));
-  h += row('גלי רוח (מ׳ · שנ׳)', r => cell(r, r.ww == null ? '–' : `${fmt(r.ww, 1)}<span class="sub">${fmt(r.wwPer, 1)}</span>`));
-  h += row('סוול (מ׳ · שנ׳)', r => cell(r, r.sw == null ? '–' : `${fmt(r.sw, 1)}<span class="sub">${fmt(r.swPer, 1)}</span>`));
+  h += row('גלי רוח (ס״מ · שנ׳)', r => cell(r, r.ww == null ? '–' : `${CM(r.ww)}<span class="sub">${fmt(r.wwPer, 1)}</span>`));
+  h += row('סוול (ס״מ · שנ׳)', r => cell(r, r.sw == null ? '–' : `${CM(r.sw)}<span class="sub">${fmt(r.swPer, 1)}</span>`));
+  h += row('<span title="נוח / בינוני / מאתגר / קשה – לפי רוח (הגבוהה בין המודלים), משבים, גובה, גלים קצרים וים צולב">אופי הים</span>', r => { const d = seaDemand(r); return cell(r, d ? ['נוח', 'בינוני', 'מאתגר', 'קשה'][d.lvl] : '–', d && d.lvl >= 2 ? ' ov1' : '', d && d.why.length ? d.why.join(' · ') : ''); });
   h += row('מים (°C)', r => cell(r, fmt(r.sst, 1)));
   h += grp('מזג אוויר');
   h += row('שמיים', r => cell(r, wxIco(r.code, isNight(r)), '', WX_NAME(r.code)));
@@ -565,16 +575,17 @@ function compassSvg(rows, course) {
     </defs>${g}</svg>`;
 }
 
-function planText(p, rows, s, lvl) {
+function planText(p, rows, s, lvl, title) {
   const n = dayName(p.date);
   const course = COURSES.find(c => c.v === p.course)?.t || '';
   const plain = t => t.replace(/[\u2066\u2069]/g, '');
   const rd = s.rain.during, ra = s.rain.after;
   return [
     `⛵ הפלגה ממרינה הרצליה – ${n.full}, \u2066${hm(p.from)}–${p.to === 24 ? '24:00' : hm(p.to)}\u2069${p.course ? ' · ' + course : ''}`,
-    `${['✅ מתאים להפלגה', '⚠️ אפשר, אבל בזהירות', '⛔ לא מומלץ להפליג', '❔ אין מספיק נתונים להמלצה'][lvl]} (לפי הספים שהגדרתי)`,
+    `${['✅', '⚠️', '⛔', '❔'][lvl]} ${title || VERDICT[lvl].long} (לפי הספים שהגדרתי)`,
     `🌬️ רוח ${from8(s.md)} ${range(s.wMin, s.wMax)} קשר, משבים עד ${fmt(s.gMax)}`,
-    `🌊 גלים ${range(s.wvMin, s.wvMax, 1)} מ', מחזור ${fmt(s.per)} שנ' – ${seaText(s.wvMax ?? 0)}`,
+    `🌊 גלים ${cmRange(s.wvMin, s.wvMax).replace(/[\u2066\u2069\u2060]/g, '')} ס"מ, מחזור ${fmt(s.per)} שנ'`,
+    s.dm && s.dm.lvl ? `⚓ אופי הים: ${s.dm.t}${s.dm.d ? ' – ' + s.dm.d : ''}${s.dm.why.length ? ' (' + s.dm.why.slice(0, 2).join(' · ') + ')' : ''}` : null,
     rd.status === 'wet' ? `${rd.thunder ? '⛈️' : '🌧️'} ${plain(rd.text)}` : rd.status === 'missing' ? '❔ אין נתוני גשם לשעות ההפלגה' : null,
     ra.status === 'wet' ? `${ra.thunder ? '⛈️' : '🌧️'} אחרי החזרה: ${plain(ra.text)}` : null,
     `🌡️ ${range(s.tMin, s.tMax)}°C · מים ${fmt(s.sst)}°C`,
@@ -643,7 +654,7 @@ function renderPlan() {
     md, wMin: mn('wind'), wMax: mx('wind'), gMax: mx('gust'), wvMin: mn('wave'), wvMax: mx('wave'), per: avgOf('wavePer'),
     tMin: mn('temp'), tMax: mx('temp'), sst: avgOf('sst'), wet: rain.during.status === 'wet', rain,
     afterSunset: plan.to > sunsetH + 0.25, beforeSunrise: plan.from < sunriseH - 0.25,
-    thunder: rows.some(r => r.code >= 95), offshore: coastD > 120
+    thunder: rows.some(r => r.code >= 95), offshore: coastD > 120, dm: demandOf(rows)
   };
   const lvl = planVerdict(rows);
   const reasons = reasonsByHour(rows, true);
@@ -664,10 +675,13 @@ function renderPlan() {
   const metrics = `<div class="metrics">
     ${metric({ icon: 'wind', label: 'רוח', value: range(s.wMin, s.wMax), unit: 'קשר', dir: md, sub: wOver ? `מעל הסף שלך: ${settings.maxWind}` : '', over: wOver, lvl: lvM })}
     ${metric({ icon: 'gauge', label: 'משבים', value: fmtTh(s.gMax, 'gust'), unit: 'קשר', sub: gOver ? `מעל הסף שלך: ${settings.maxGust}` : 'לכל היותר', over: gOver, lvl: lvM })}
-    ${metric({ icon: 'waves', label: 'גלים', value: vOver && +fmt(s.wvMax, 1) <= settings.maxWave ? `${fmt(s.wvMin, 1)}–${fmtTh(s.wvMax, 'wave', 1)}` : range(s.wvMin, s.wvMax, 1), unit: 'מטר', sub: vOver ? `מעל הסף שלך: ${settings.maxWave}` : (s.per != null ? `מחזור ${fmt(s.per)} שנ׳` : ''), over: vOver, lvl: lvM })}
+    ${metric({ icon: 'waves', label: 'גלים', value: vOver && Math.round(s.wvMax * 100) <= Math.round(settings.maxWave * 100) ? `${CM(s.wvMin)}–${fmtTh(s.wvMax, 'wave')}` : cmRange(s.wvMin, s.wvMax), unit: 'ס״מ', sub: vOver ? `מעל הסף שלך: ${CM(settings.maxWave)}` : (s.per != null ? `מחזור ${fmt(s.per)} שנ׳` : ''), over: vOver, lvl: lvM })}
   </div>`;
   const problems = reasons.concat(extraWarn);
-  const why = problems.length ? problems.slice(0, 3).join(' · ') : 'כל השעות, כולל שעת החזרה, בתוך הספים <button type="button" class="linkish" data-open-settings>שהגדרת</button>';
+  // כמו בסיכום: כשרק אופי הים מונע "מתאים" – "אפשר לצאת – ים מאתגר"
+  const demandOnly = lvl === 1 && !extraWarn.length && rows.every(r => verdict(r).reasons.every(isDemandReason));
+  const pTitle = demandOnly && s.dm ? `אפשר לצאת – ${s.dm.t}` : VERDICT[lvl].long;
+  const why = demandOnly && s.dm ? `${s.dm.d}: ${s.dm.why.slice(0, 2).join(' · ')}` : problems.length ? problems.slice(0, 3).join(' · ') : 'כל השעות, כולל שעת החזרה, בתוך הספים <button type="button" class="linkish" data-open-settings>שהגדרת</button>';
   const actions = `<button id="p-save" class="btn"${saved ? ' aria-pressed="true"' : ''}>${ico(saved ? 'bookmark-check' : 'bookmark', 18)}${saved ? 'נשמרה' : 'שמור הפלגה'}</button>
     <button id="p-copy" class="btn">${ico('share-2', 18)}שתף סיכום</button><span id="p-copied" class="copied" role="status"></span>`;
   const altHtml = alts.length ? `<div class="alts"><span class="muted">זמנים טובים יותר באותו אורך:</span>${alts.map(a => `<button class="btn alt" data-d="${a.date}" data-f="${a.from}" data-t="${a.to}">${dayName(a.date).name} ${span(a.from, a.to)}</button>`).join('')}</div>`
@@ -678,7 +692,7 @@ function renderPlan() {
     const sa = k ? fmtTh(a, k, d) : fmt(a, d), sb = k ? fmtTh(b, k, d) : fmt(b, d);   // בדיוק המספרים שמוצגים
     const dd = Math.max((sa.split('.')[1] || '').length, (sb.split('.')[1] || '').length);
     const x = +(+sb - +sa).toFixed(dd);
-    if (Math.abs(x) < (d ? 0.15 : 2)) return '<small>ללא שינוי משמעותי</small>';
+    if (Math.abs(x) < (k === 'wave' ? 10 : d ? 0.15 : 2)) return '<small>ללא שינוי משמעותי</small>';
     return `<small class="${x > 0 ? 'up' : 'down'}">${x > 0 ? 'עולה ב-' : 'יורד ב-'}${bdi(fmt(Math.abs(x), dd))} ${unit}</small>`;
   };
   // זווית ההפלגה בפועל: לפי המסלול שנבחר, או לכל כיוון נפוץ – מחושב מכיוון הרוח
@@ -702,7 +716,7 @@ function renderPlan() {
   out.innerHTML = `
     ${durHtml}
     <div class="p-top">
-      ${decisionCard({ lvl, scope: tripLine, title: VERDICT[lvl].long, why, actions, extra: rainCard(rain.during) + rainCard(rain.after, { after: true }) + altHtml, basis: problems.length > 0 })}
+      ${decisionCard({ lvl, scope: tripLine, title: pTitle, why, actions, extra: rainCard(rain.during) + rainCard(rain.after, { after: true }) + altHtml, basis: problems.length > 0 })}
       <section class="card p-metrics" aria-label="רוח, משבים וגלים לאורך ההפלגה">${metrics}</section>
     </div>
     <div class="p-grid">
@@ -711,7 +725,7 @@ function renderPlan() {
         <table class="dr"><thead><tr><th></th><th>ביציאה · ${bdi(hm(dep.hour))}</th><th>בחזרה · ${bdi(hm(ret.hour))}</th></tr></thead><tbody>
           <tr><th scope="row">רוח</th><td data-l="ביציאה"><b>${fmt(dep.wind)}</b> קשר<small>${from8(dep.dir)}</small>${ph(dep)}</td><td data-l="בחזרה"><b>${fmt(ret.wind)}</b> קשר<small>${from8(ret.dir)}</small>${chg(dep.wind, ret.wind, 0, 'קשר')}${ph(ret)}</td></tr>
           <tr><th scope="row">משבים</th><td data-l="ביציאה"><b>${fmt(dep.gust)}</b> קשר</td><td data-l="בחזרה"><b>${fmt(ret.gust)}</b> קשר${chg(dep.gust, ret.gust, 0, 'קשר')}</td></tr>
-          <tr><th scope="row">גלים</th><td data-l="ביציאה"><b>${fmtTh(dep.wave, 'wave', 1)}</b> מ׳<small>${dep.wavePer != null ? 'מחזור ' + fmt(dep.wavePer) + ' שנ׳' : ''}</small></td><td data-l="בחזרה"><b>${fmtTh(ret.wave, 'wave', 1)}</b> מ׳${chg(dep.wave, ret.wave, 1, 'מ׳', 'wave')}</td></tr>
+          <tr><th scope="row">גלים</th><td data-l="ביציאה"><b>${fmtTh(dep.wave, 'wave')}</b> ס״מ<small>${dep.wavePer != null ? 'מחזור ' + fmt(dep.wavePer) + ' שנ׳' : ''}</small></td><td data-l="בחזרה"><b>${fmtTh(ret.wave, 'wave')}</b> ס״מ${chg(dep.wave, ret.wave, 0, 'ס״מ', 'wave')}</td></tr>
           <tr><th scope="row">שמיים</th><td data-l="ביציאה">${wxIco(dep.code, isNight(dep), 18)} ${fmt(dep.temp)}°</td><td data-l="בחזרה">${wxIco(ret.code, isNight(ret), 18)} ${fmt(ret.temp)}°</td></tr>
         </tbody></table>
         ${legs}
@@ -726,6 +740,7 @@ function renderPlan() {
         <h2 class="sec-h" id="pw-title">${ico('route', 18)}התנאים בדרך</h2>
         <div id="p-trend"></div>
         <div class="seg-list" aria-label="המלצת מפרשים">${segs.map(sg => `<div><span class="t">${bdi(sg.label)}</span><span>${lvl > 0 ? sg.t.replace(' – רוח טובה להפלגה', '') : sg.t}</span></div>`).join('')}</div>
+        ${demandLine(s.dm, { label: 'אופי הים בהפלגה' })}
         <p class="note">${wxIco(dep.code, isNight(dep), 16)}<span>${range(s.tMin, s.tMax)}° · מים ${fmt(s.sst)}° · ${comfortText(s.wvMax, s.per)}</span></p>
         <p class="note">${ico('info', 16)}<span>המלצת המפרשים היא הערכה כללית ליאכטה של 12 מ׳ – תלויה בסירה ובצוות.</span></p>
       </section>
@@ -752,7 +767,7 @@ function renderPlan() {
     renderPlan(); renderWeek(); $('p-save').focus();
   });
   $('p-copy').addEventListener('click', async () => {
-    const txt = planText(plan, rows, s, lvl);
+    const txt = planText(plan, rows, s, lvl, pTitle);
     track('plan-copy');
     if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ text: txt }); return; } catch (_) { /* בוטל – ממשיכים להעתקה */ } }
     try { await navigator.clipboard.writeText(txt); }
@@ -776,11 +791,20 @@ function renderIntro() {
   $('intro').innerHTML = `<p><b>תחזית ים למרינה הרצליה:</b> האם מתאים לצאת להפליג, ומה תפגוש בים.</p>
     <div class="legend-v"><span class="lv0">${pill(0, 'מתאים')}</span><span>${pill(1, 'בזהירות')}</span><span>${pill(2, 'לא מומלץ')}</span></div>
     <details class="intro-more"><summary>עוד הסבר</summary>
-    <p>מתאים כשהרוח עד ${settings.maxWind} קשר, המשבים עד ${settings.maxGust} והגלים עד ${settings.maxWave} מ׳. אפשר לשנות בהגדרות.</p>
+    <p>מתאים כשהרוח עד ${settings.maxWind} קשר, המשבים עד ${settings.maxGust} והגלים עד ${CM(settings.maxWave)} ס״מ. בנוסף, ים מאתגר (ים צולב, גלים קצרים, רוח חזקה לפי חלק מהמודלים) מסומן "בזהירות". אפשר לשנות בהגדרות.</p>
     <p>כל הנתונים הם תחזית ולא מדידה. גובה הגלים הוא "גובה גל משמעותי" (ממוצע השליש הגבוה) – גלים בודדים יכולים להיות גבוהים יותר. הציור להמחשה בלבד.</p></details>`;
 }
 function renderAll() {
   if (!data) return;
+  // תחזית שמורה שכולה מימים שעברו: לא מציגים נתונים ישנים כאילו הם להיום
+  if (!data.rows.some(r => r.date >= todayStr())) {
+    $('loading').classList.remove('hidden');
+    $('loading').textContent = 'התחזית השמורה ישנה מדי ואין בה נתונים להיום. מנסים לטעון תחזית חדשה – בדקו את החיבור לאינטרנט.';
+    ['brief', 'plan', 'table'].forEach(v => $(v + '-view').classList.add('stale-hide'));
+    renderUpdated();
+    return;
+  }
+  ['brief', 'plan', 'table'].forEach(v => $(v + '-view').classList.remove('stale-hide'));
   renderIntro();
   $('loading').classList.add('hidden');
   renderDays();
@@ -982,6 +1006,8 @@ function drawPtMap(fit) {
 const FIELDS = ['maxWind', 'maxGust', 'maxWave', 'minPeriod', 'hourFrom', 'hourTo', 'windLat', 'windLon', 'waveLat', 'waveLon'];
 function fillSettings(s) {
   FIELDS.forEach(f => $('s-' + f).value = s[f]);
+  $('s-maxWave').value = Math.round(s.maxWave * 100); // גלים בס"מ
+  $('s-seaCharacter').checked = s.seaCharacter !== false;
   $('s-step').value = String(s.step);
   $('s-showModels').checked = !!s.showModels;
   $('s-night').checked = s.night !== false;

@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=5.2">
+  <link rel="stylesheet" href="app.css?v=5.3">
 </head>
 <body>
 <div class="app">
@@ -132,8 +132,9 @@
     <div class="grid">
       <label>רוח עד (קשר)<input type="number" id="s-maxWind" step="1" min="1" inputmode="numeric"></label>
       <label>משבים עד (קשר)<input type="number" id="s-maxGust" step="1" min="1" inputmode="numeric"></label>
-      <label>גלים עד (מטר)<input type="number" id="s-maxWave" step="0.1" min="0.1" inputmode="decimal"></label>
+      <label>גלים עד (ס״מ)<input type="number" id="s-maxWave" step="10" min="20" inputmode="numeric"></label>
       <label>מחזור גל מינימלי (שניות)<input type="number" id="s-minPeriod" step="0.5" min="0" inputmode="decimal"></label>
+      <label class="check"><input type="checkbox" id="s-seaCharacter"> להתחשב באופי הים: ים מאתגר (ים צולב, גלים קצרים, רוח חזקה לפי חלק מהמודלים) יסומן "בזהירות"</label>
     </div>
     <h3>תצוגה</h3>
     <div class="grid">
@@ -177,10 +178,10 @@
   </footer>
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=5.2"></script>
-  <script src="core.js?v=5.2"></script>
-  <script src="data.js?v=5.2"></script>
-  <script src="app.js?v=5.2"></script>
+  <script src="icons.js?v=5.3"></script>
+  <script src="core.js?v=5.3"></script>
+  <script src="data.js?v=5.3"></script>
+  <script src="app.js?v=5.3"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
