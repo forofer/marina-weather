@@ -131,11 +131,24 @@ const durTxt = m => { const h = Math.floor(m / 60), mm = Math.round(m % 60); ret
 const r5 = x => Math.round(x * 1e5) / 1e5;
 
 // נתוני הפלגה מחושבים מהמסלול הנקי (המרחק של Google לא תמיד אמין)
+// תיקון ידני (trip.fix): מסלול, שעות ומרחק כולל – כשחלק מההפלגה לא נרשם ב-Google
+const tStart = t => (t.fix && t.fix.start) || t.start, tEnd = t => (t.fix && t.fix.end) || t.end;
+// שעה מקומית (ישראל) בתאריך נתון → ISO
+function localToISO(dateStr, hm) {
+  let t = Date.parse(`${dateStr}T${hm}:00Z`);
+  for (let k = 0; k < 2; k++) {
+    const [d, h] = [localDate(t), new Intl.DateTimeFormat('en-GB', { timeZone: TL_TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t))];
+    t += Date.parse(`${dateStr}T${hm}:00Z`) - Date.parse(`${d}T${h}:00Z`);
+  }
+  return new Date(t).toISOString();
+}
 function tripStats(trip) {
   const pts = cleanPath(trip.path || []);
-  const start = tms(trip.start), end = tms(trip.end);
+  const fx = trip.fix || {};
+  const start = tms(tStart(trip)), end = tms(tEnd(trip));
   const durMin = (end - start) / 60000;
-  const dist = pts.length > 1 ? pathLen(pts) : (trip.distanceM || 0);
+  const dist0 = pts.length > 1 ? pathLen(pts) : (trip.distanceM || 0);
+  const dist = fx.nm > 0 ? fx.nm * 1852 : dist0;
   const nm = dist / 1852;
   // מהירות מרבית (משוערת): על קטעים של 5 דקות לפחות, בקו ישר – כדי שריצוד לא ינפח אותה
   let maxKn = 0;
@@ -148,7 +161,9 @@ function tripStats(trip) {
   const c = pts.length ? [pts.reduce((s, x) => s + x[0], 0) / pts.length, pts.reduce((s, x) => s + x[1], 0) / pts.length] : null;
   // הנקודה הרחוקה ביותר מהיציאה
   const far = pts.length ? pts.reduce((m, x) => distM(pts[0], x) > distM(pts[0], m) ? x : m, pts[0]) : null;
-  return { pts, durMin, dist, nm, km: dist / 1000, avgKn: durMin > 0 ? nm / (durMin / 60) : null, maxKn: maxKn || null, from, to, centroid: c, farNm: far ? distM(pts[0], far) / 1852 : null, removed: (trip.path || []).length - pts.length };
+  return { pts, durMin, dist, nm, km: dist / 1000, avgKn: durMin > 0 ? (fx.nm > 0 && !fx.start && !fx.end ? dist0 / 1852 : nm) / (durMin / 60) : null,  // מרחק מתוקן בלי שעות מתוקנות – הממוצע לפי מה שנרשם
+     maxKn: maxKn || null, from, to, centroid: c, farNm: far ? distM(pts[0], far) / 1852 : null, removed: (trip.path || []).length - pts.length,
+    recNm: dist0 / 1852, fixed: !!(fx.start || fx.end || fx.nm > 0 || fx.label) };
 }
 const placeTxt = s => s.from && s.to ? (s.from === s.to ? `מ${s.from} ובחזרה` : `מ${s.from} אל ${s.to.replace(/^מרינה /, 'מרינה ')}`) : s.from ? `יציאה מ${s.from}` : s.to ? `הגעה אל ${s.to}` : 'בים';
 
@@ -176,25 +191,29 @@ function toJournalTrip(t, source) {
   const start = new Date(tms(t.start)).toISOString(), end = new Date(tms(t.end)).toISOString();
   return { id: start, start, end, prob: t.prob ?? t.probability ?? null, source: source || t.source || 'google-timeline',
     path: (t.path || []).map(p => [r5(p[0]), r5(p[1]), p[2] != null ? new Date(tms(p[2])).toISOString() : null]),
-    distanceM: t.dist ?? t.distanceM ?? null, notes: t.notes || {}, wx: t.wx || null, deleted: false };
+    distanceM: t.dist ?? t.distanceM ?? null, notes: t.notes || {}, wx: t.wx || null, fix: t.fix || null, deleted: false };
 }
 // הוספה בלי כפילויות: הפלגה שחופפת בזמן להפלגה קיימת לא נוספת שוב (ההערות הקיימות נשמרות)
 function addTrips(journal, trips) {
-  let added = 0, dup = 0, restored = 0;
+  let added = 0, dup = 0, restored = 0, removed = 0, fixed = 0;
   for (const t of trips) {
     const s = tms(t.start), e = tms(t.end);
     const ex = journal.trips.find(x => tms(x.start) < e && s < tms(x.end));
     if (ex) {
-      if (ex.deleted && t.restore) { ex.deleted = false; restored++; } else dup++;
-      // גיבוי משוחזר מביא איתו הערות ונתוני מזג אוויר שאולי חסרים
+      // קובץ יומן (גיבוי או קובץ תיקונים) קובע אם ההפלגה מחוקה
+      if (t.restore && ex.deleted && !t.deleted) { ex.deleted = false; restored++; }
+      else if (t.restore && !ex.deleted && t.deleted) { ex.deleted = true; removed++; }
+      else dup++;
+      // גיבוי משוחזר מביא איתו הערות, תיקונים ונתוני מזג אוויר שאולי חסרים
       if (t.notes && Object.keys(t.notes).length && !Object.keys(ex.notes || {}).length) ex.notes = t.notes;
-      if (t.wx && !ex.wx) ex.wx = t.wx;
+      if (t.fix && !ex.fix) { ex.fix = t.fix; fixed++; if (t.fix.start || t.fix.end) ex.wx = null; }
+      if (t.wx && !ex.wx && !(ex.fix && !t.fix)) ex.wx = t.wx;
       continue;
     }
     const { restore, ...clean } = t; journal.trips.push(clean); added++;
   }
   journal.trips.sort((a, b) => tms(b.start) - tms(a.start));
-  return { added, dup, restored };
+  return { added, dup, restored, removed, fixed };
 }
 // קורא כל קובץ נתמך ומחזיר הפלגות מוכנות ליומן
 function tripsFromFile(json) {

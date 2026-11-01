@@ -120,6 +120,38 @@ function mockWeather(u) {
     await p.click('#journal-msg a'); await p.waitForTimeout(200);
     ok(await p.$$eval('details.jtrip', x => x.length) === 1, 'היומן נפתח עם ההפלגה'); }
 
+  console.log('תיקון פרטים ידני');
+  { await p.click('details.jtrip summary'); await p.waitForSelector('.wx-tab');
+    await p.click('.fix-box summary');
+    await p.fill('[data-fix="label"]', 'מהרצליה לתל אביב ובחזרה'); await p.press('[data-fix="label"]', 'Tab'); await p.waitForTimeout(200);
+    ok(/מהרצליה לתל אביב ובחזרה/.test(await p.textContent('details.jtrip summary')), 'שם המסלול המתוקן ברשימה');
+    ok(await p.$eval('.fix-box', d => d.open), 'אזור התיקון נשאר פתוח אחרי שמירה');
+    const before = reqs.filter(u => /historical-forecast/.test(u)).length;
+    await p.fill('[data-fix="start"]', '13:30'); await p.dispatchEvent('[data-fix="start"]', 'change'); await p.waitForSelector('.wx-tab');
+    const sum2 = (await p.textContent('details.jtrip summary')).replace(/\s+/g, ' ');
+    ok(/13:30–17:00/.test(sum2) && /3 ש׳ 30 ד׳/.test(sum2), 'שעת יציאה מתוקנת משנה שעות ומשך', sum2);
+    const hrs = await p.$$eval('.wx-tab tbody tr td:first-child', x => x.map(t => t.textContent));
+    ok(hrs[0] === '13:00' && reqs.filter(u => /historical-forecast/.test(u)).length === before + 1, 'התחזית נטענת מחדש לשעות המתוקנות', hrs.join(',') + ' n=' + (reqs.filter(u => /historical-forecast/.test(u)).length - before));
+    const rec = await p.evaluate(() => tripStats(loadJournal().trips[0]).recNm);
+    await p.click('[data-fix-rt]'); await p.waitForTimeout(200);
+    ok(new RegExp((Math.round(rec * 20) / 10).toFixed(1) + ' מייל').test(await p.textContent('details.jtrip summary')), 'כפתור "הלוך ושוב" מכפיל את המרחק');
+    ok(/תוקן ידנית/.test(await p.textContent('.fix-note')), 'הערת "תוקן ידנית" בפירוט');
+    await p.reload(); await p.waitForTimeout(200);
+    ok(/מהרצליה לתל אביב ובחזרה/.test(await p.textContent('details.jtrip summary')) && /13:30/.test(await p.textContent('details.jtrip summary')), 'התיקונים נשמרו אחרי טעינה מחדש');
+    await p.click('details.jtrip summary'); await p.waitForSelector('[data-fix-clear]'); await p.click('[data-fix-clear]'); await p.waitForTimeout(200);
+    ok(/15:00–17:00/.test(await p.textContent('details.jtrip summary')) && !(await p.$('.fix-note')), 'ביטול התיקונים מחזיר את נתוני Google'); }
+
+  console.log('קובץ תיקונים מגיבוי');
+  { const j = await p.evaluate(() => loadJournal());
+    const corr = { format: 'marina-weather-journal/1', trips: [{ ...j.trips[0], fix: { label: 'מסלול מתוקן', nm: 9.9 } }, { start: '2026-09-01T10:00:00Z', end: '2026-09-01T11:00:00Z', path: [[32.16, 34.79, null], [32.17, 34.75, null]], deleted: true }] };
+    const f = path.join(require('os').tmpdir(), 'corr-test.json'); fs.writeFileSync(f, JSON.stringify(corr));
+    await p.setInputFiles('#file', f); await p.waitForTimeout(200);
+    ok(/אחת תוקנה/.test(await p.textContent('#import-msg')) && /מסלול מתוקן/.test(await p.textContent('details.jtrip summary')), 'תיקון מקובץ חל על הפלגה קיימת', await p.textContent('#import-msg'));
+    ok(await p.$$eval('details.jtrip', x => x.length) === 1, 'הפלגה שמסומנת כמחוקה בקובץ לא מוצגת');
+    corr.trips = [{ ...j.trips[0], deleted: true }]; fs.writeFileSync(f, JSON.stringify(corr));
+    await p.setInputFiles('#file', f); await p.waitForTimeout(200);
+    ok(await p.$$eval('details.jtrip', x => x.length) === 0 && /אחת נמחקה/.test(await p.textContent('#import-msg')), 'קובץ שמוחק הפלגה קיימת'); }
+
   console.log('תצוגה');
   const ov = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   ok(ov <= 0, 'אין גלילה לרוחב', String(ov));

@@ -43,7 +43,7 @@ async function fetchWx(trip) {
   const s = tripStats(trip);
   if (!s.centroid) throw new Error('אין מסלול להפלגה');
   const [lat, lng] = s.centroid.map(x => x.toFixed(4));
-  const d0 = localDate(trip.start), d1 = localDate(trip.end);
+  const S = tStart(trip), E = tEnd(trip), d0 = localDate(S), d1 = localDate(E);
   const tz = encodeURIComponent(TL_TZ);
   const wUrl = `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&start_date=${d0}&end_date=${d1}` +
     `&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,weather_code&models=best_match,ecmwf_ifs025,icon_seamless,gfs_seamless&wind_speed_unit=kn&cell_selection=sea&timezone=${tz}`;
@@ -54,8 +54,8 @@ async function fetchWx(trip) {
   const H = w.hourly, M = m && m.hourly;
   const pick = (k, i) => H[k + '_best_match']?.[i] ?? H[k]?.[i] ?? null;
   // השעות של ההפלגה: מהשעה העגולה שלפני היציאה עד השעה העגולה שאחרי החזרה
-  const t0 = localDate(trip.start) + 'T' + String(localHour(trip.start)).padStart(2, '0') + ':00';
-  const eh = localHour(trip.end), t1 = localDate(trip.end) + 'T' + String(eh).padStart(2, '0') + ':00';
+  const t0 = localDate(S) + 'T' + String(localHour(S)).padStart(2, '0') + ':00';
+  const eh = localHour(E), t1 = localDate(E) + 'T' + String(eh).padStart(2, '0') + ':00';
   const rows = [];
   H.time.forEach((t, i) => {
     if (t < t0 || t > t1) return;
@@ -117,17 +117,19 @@ function initMap(el, trip) {
 }
 
 /* ===================== רשימה ופירוט ===================== */
+const routeTxt = (t, s) => (t.fix && t.fix.label) || placeTxt(s);
 function feelBadge(t) { const f = t.notes?.feel; return f != null ? `<span class="feel-b f${f}">${FEEL[f]}</span>` : ''; }
 function renderList() {
   const el = $('trips');
+  maps.forEach(m => m.remove()); maps.clear();
   const tr = visible();
   if (!tr.length) { el.innerHTML = '<p class="empty">אין עדיין הפלגות ביומן.</p>'; return; }
   el.innerHTML = tr.map(t => {
     const s = tripStats(t);
     return `<details class="jtrip" data-id="${esc(t.id)}">
       <summary>
-        <span class="t-main"><b>${fmtDate(t.start)} · <bdi dir="ltr" class="nw">${fmtTime(t.start)}–${fmtTime(t.end)}</bdi></b>
-          <span class="t-sub">${placeTxt(s)}</span>
+        <span class="t-main"><b>${fmtDate(t.start)} · <bdi dir="ltr" class="nw">${fmtTime(tStart(t))}–${fmtTime(tEnd(t))}</bdi></b>
+          <span class="t-sub">${esc(routeTxt(t, s))}</span>
           <span class="t-nums">${s.nm.toFixed(1)} מייל · ${durTxt(s.durMin)}${s.avgKn ? ` · ${s.avgKn.toFixed(1)} קשר בממוצע` : ''}</span></span>
         <span class="t-side">${miniPath(s.pts)}${feelBadge(t)}</span>
       </summary>
@@ -150,6 +152,7 @@ function openTrip(d) {
       <div class="stat"><div class="k">מהירות מרבית (משוערת)</div><div class="v">${s.maxKn ? s.maxKn.toFixed(1) : '–'} <small>קשר</small></div></div>
       <div class="stat"><div class="k">התרחקות מקסימלית</div><div class="v">${s.farNm != null ? s.farNm.toFixed(1) : '–'} <small>מייל</small></div></div>
     </div>
+    ${s.fixed ? `<p class="fix-note">${ico('info', 16)}<span><b>תוקן ידנית.</b> ${esc(t.fix.note || '')}${t.fix.nm > 0 ? ` המפה מראה רק את מה ש-Google רשמה (${s.recNm.toFixed(1)} מייל).` : ''}</span></p>` : ''}
     <div class="t-map" aria-label="מפת המסלול"></div>
     <p class="src" style="margin-top:-0.5rem">המסלול מציר הזמן של Google (נקודה כל דקה–כמה דקות, מוחלק). ${s.removed ? `הוסרו ${s.removed === 1 ? 'נקודה שגויה אחת' : s.removed + ' נקודות שגויות'} (קפיצות שיאכטה לא יכולה לעשות). ` : ''}</p>
     <section><h3 class="h3">מה התחזית אמרה</h3><div data-wx>${wxHtml(t)}</div></section>
@@ -162,6 +165,19 @@ function openTrip(d) {
       </div>
       <div class="saved-msg" role="status"></div>
     </section>
+    <details class="fix-box"${s.fixed || keepFix === t.id ? ' open' : ''}><summary>תיקון פרטים – כש-Google טעתה או פספסה חלק</summary>
+      <div class="fields">
+        <label class="wide">מסלול<input data-fix="label" value="${esc(t.fix?.label)}" placeholder="${esc(placeTxt(s))}"></label>
+        <label>שעת יציאה<input type="time" data-fix="start" value="${fmtTime(tStart(t))}"></label>
+        <label>שעת חזרה<input type="time" data-fix="end" value="${fmtTime(tEnd(t))}"></label>
+        <label>מרחק כולל (מייל)<input type="number" inputmode="decimal" step="0.1" min="0" data-fix="nm" value="${t.fix?.nm > 0 ? t.fix.nm : ''}" placeholder="${s.recNm.toFixed(1)}"></label>
+        <label class="wide">מה תוקן<input data-fix="note" value="${esc(t.fix?.note)}" placeholder="למשל: הדרך הלוך לא נרשמה"></label>
+      </div>
+      <div class="t-actions" style="margin-top:0.5rem">
+        <button type="button" class="btn" data-fix-rt>הלוך ושוב באותה דרך: ${(s.recNm * 2).toFixed(1)} מייל</button>
+        ${s.fixed ? '<button type="button" class="btn quiet" data-fix-clear>בטל את התיקונים</button>' : ''}
+      </div>
+    </details>
     <div class="t-actions"><span class="src">נשמר רק בטלפון הזה.</span><button class="btn danger" data-del>מחק מהיומן</button></div>`;
   requestAnimationFrame(() => initMap(body.querySelector('.t-map'), t));
   // הערות – שמירה אוטומטית
@@ -180,7 +196,35 @@ function openTrip(d) {
     del.dataset.armed = '1'; del.textContent = 'בטוח? לחץ שוב למחיקה';
     setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'מחק מהיומן'; } }, 4000);
   });
+  // תיקון פרטים – נשמר כשעוזבים שדה; שינוי שעות טוען מחדש את התחזית
+  const setFix = patch => {
+    const f = { ...(t.fix || {}), ...patch };
+    Object.keys(f).forEach(k => { if (f[k] === '' || f[k] == null) delete f[k]; });
+    if (['start', 'end'].some(k => k in patch && (patch[k] || null) !== (t.fix?.[k] || null))) t.wx = null;
+    if (['label', 'start', 'end', 'nm', 'note'].every(k => (f[k] ?? null) === (t.fix?.[k] ?? null))) return;   // לא השתנה כלום
+    t.fix = Object.keys(f).length ? f : null;
+    saveJournal(J); reopen(t.id);
+  };
+  body.querySelectorAll('[data-fix]').forEach(inp => inp.addEventListener('change', () => {
+    const k = inp.dataset.fix, v = inp.value.trim();
+    if (k === 'start' || k === 'end') {
+      if (!/^\d\d:\d\d$/.test(v)) return;
+      const iso = localToISO(localDate(k === 'start' ? t.start : t.end), v);
+      const orig = k === 'start' ? t.start : t.end;
+      setFix({ [k]: fmtTime(iso) === fmtTime(orig) ? null : iso });
+    } else if (k === 'nm') setFix({ nm: v && +v > 0 ? Math.round(+v * 10) / 10 : null });
+    else setFix({ [k]: v || null });
+  }));
+  body.querySelector('[data-fix-rt]').addEventListener('click', () => setFix({ nm: Math.round(s.recNm * 20) / 10, note: t.fix?.note || 'המרחק משוער – הלוך ושוב באותה דרך.' }));
+  body.querySelector('[data-fix-clear]')?.addEventListener('click', () => { if (t.fix?.start || t.fix?.end) t.wx = null; t.fix = null; saveJournal(J); reopen(t.id); });
   loadWx(t, body);
+}
+let keepFix = null;
+function reopen(id) {
+  const y = window.scrollY; renderAll();
+  const d = [...document.querySelectorAll('details.jtrip')].find(x => x.dataset.id === id);
+  keepFix = id; if (d) d.open = true;
+  window.scrollTo(0, y);
 }
 async function loadWx(t, body) {
   const box = body.querySelector('[data-wx]');
@@ -204,7 +248,7 @@ $('file').addEventListener('change', async e => {
     if (!trips.length) throw new Error(`נקרא ${kind}, אבל לא נמצאו בו הפלגות (שייט).`);
     const r = addTrips(J, trips);
     if (!saveJournal(J)) throw new Error('הדפדפן לא מאפשר לשמור (מצב גלישה פרטית?).');
-    msg.textContent = `נקרא ${kind}: נוספו ${r.added === 1 ? 'הפלגה אחת' : r.added + ' הפלגות'}${r.dup ? `, ${r.dup} כבר היו ביומן` : ''}${r.restored ? `, ${r.restored} שוחזרו` : ''}. שאר המידע בקובץ לא נשמר.`;
+    msg.textContent = `נקרא ${kind}: נוספו ${r.added === 1 ? 'הפלגה אחת' : r.added + ' הפלגות'}${r.dup ? `, ${r.dup} כבר היו ביומן` : ''}${r.restored ? `, ${r.restored} שוחזרו` : ''}${r.removed ? `, ${r.removed === 1 ? 'אחת נמחקה' : r.removed + ' נמחקו'}` : ''}${r.fixed ? `, ${r.fixed === 1 ? 'אחת תוקנה' : r.fixed + ' תוקנו'}` : ''}. שאר המידע בקובץ לא נשמר.`;
     renderAll();
   } catch (err) {
     msg.className = 'msg err';
