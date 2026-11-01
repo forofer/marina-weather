@@ -63,7 +63,7 @@ const clipped = p => p.evaluate(() => {
     ok(/התחזית נמשכה/.test(await txt(p, '#updated')), 'מוצג גיל הנתונים');
     await p.unrouteAll(); await p.route(/open-meteo|goatcounter|zgo|fonts\./, r => r.abort('internetdisconnected'));
     await p.addInitScript(() => { const n = Date.now; Date.now = () => n() + 5 * 3600e3; });
-    await p.reload(); await p.waitForTimeout(1200);
+    await p.reload(); await p.waitForSelector('#updated.stale', { timeout: 8000 }).catch(() => {}); await p.waitForSelector('#banner:not(.hidden)', { timeout: 8000 }).catch(() => {});
     const upd = await txt(p, '#updated');
     ok(/לא עדכני/.test(upd), 'בלי רשת ועם נתונים בני 5 שעות – כתוב "לא עדכני"', upd);
     ok(await p.$eval('#updated', e => e.classList.contains('stale')), 'הכיתוב מסומן חזותית כישן');
