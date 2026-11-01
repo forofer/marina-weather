@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>סינון הפלגות מציר הזמן</title>
+  <meta name="robots" content="noindex">
+  <script>try{var th=localStorage.getItem("theme");if(th)document.documentElement.setAttribute("data-theme",th);}catch(e){}</script>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
+  <link rel="stylesheet" href="app.css?v=5.4">
+  <style>
+    body { padding-bottom: 2rem; }
+    .wrap { max-width: 44rem; margin: 0 auto; padding: 0 1rem; }
+    h1 { font-size: 1.375rem; margin: 1rem 0 0.25rem; }
+    .lead { color: var(--ink-2); margin: 0 0 1rem; }
+    .privacy { display: flex; gap: 0.6rem; align-items: flex-start; background: var(--go-soft); color: var(--go-ink); border-radius: var(--r-s); padding: 0.75rem 0.9rem; font-size: 0.9375rem; margin-bottom: var(--gap); }
+    .privacy .ico { flex: none; margin-top: 0.15rem; }
+    .steps { margin: 0 0 var(--gap); padding-inline-start: 1.25rem; color: var(--ink-2); font-size: 0.9375rem; }
+    .steps li { margin-bottom: 0.25rem; }
+    .pick { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+    .pick input[type=file] { font-size: 0.9375rem; max-width: 100%; }
+    .status { font-size: 0.9375rem; margin: 0.5rem 0 0; }
+    .status.err { color: var(--nogo-ink); }
+    .types { display: flex; flex-direction: column; gap: 0.35rem; }
+    .types label, .trips label { display: flex; gap: 0.6rem; align-items: center; min-height: 2.75rem; cursor: pointer; }
+    .types input, .trips input { width: 1.25rem; height: 1.25rem; accent-color: var(--accent); flex: none; }
+    .types .n { color: var(--ink-2); font-size: 0.875rem; }
+    .trips { display: flex; flex-direction: column; gap: 0.5rem; }
+    .trip-row { display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem 0.75rem; align-items: center; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--surface); }
+    .trip-row .meta { display: flex; flex-direction: column; min-width: 0; }
+    .trip-row .meta b { font-family: var(--num); font-weight: 600; }
+    .trip-row .meta small { color: var(--ink-2); font-size: 0.8125rem; }
+    .trip-row svg { width: 5.5rem; height: 3.5rem; background: var(--surface-2); border-radius: 6px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: var(--gap); }
+    .preview { margin-top: var(--gap); font-size: 0.8125rem; color: var(--ink-2); }
+    .preview pre { white-space: pre-wrap; word-break: break-all; max-height: 14rem; overflow: auto; background: var(--surface-2); padding: 0.6rem; border-radius: var(--r-s); direction: ltr; text-align: left; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><div class="brand"><a class="brand-name" href="./" style="color:inherit;text-decoration:none"><span data-ico="anchor" data-s="20" class="brand-ico"></span>ים הרצליה</a></div></header>
+  <h1>סינון הפלגות מציר הזמן של Google</h1>
+  <p class="lead">יוצר קובץ קטן שמכיל רק את ההפלגות שלך – בלי בית, בלי מקומות ובלי שום תנועה אחרת.</p>
+
+  <div class="privacy"><span data-ico="circle-check" data-s="20"></span><span><b>הקובץ לא יוצא מהטלפון.</b> הוא נקרא כאן, בדפדפן שלך בלבד, ושום דבר לא נשלח לשום מקום. רק הקובץ שתוריד בסוף – עם ההפלגות שבחרת – הוא מה שתשתף, ואפשר לראות את התוכן שלו לפני ששולחים.</span></div>
+
+  <section class="card" style="margin-bottom:var(--gap)">
+    <h2 class="sec-h">1. ייצוא מ-Google Maps</h2>
+    <ol class="steps">
+      <li>באפליקציית Google Maps: התמונה שלך ← <b>ציר הזמן</b> ← תפריט ⋯ ← <b>הגדרות של מיקום ופרטיות</b> ← <b>ייצוא נתונים מציר הזמן</b>. (בגרסאות מסוימות: הגדרות ← תוכן אישי ← ייצוא נתוני ציר הזמן.)</li>
+      <li>שומרים את הקובץ ב"קבצים". שם הקובץ בדרך כלל: <bdi dir="ltr">location-history.json</bdi> או <bdi dir="ltr">Timeline.json</bdi></li>
+    </ol>
+    <h2 class="sec-h">2. פותחים אותו כאן</h2>
+    <div class="pick">
+      <input type="file" id="file" accept=".json,application/json" aria-label="קובץ ציר הזמן">
+      <p id="status" class="status" role="status"></p>
+    </div>
+  </section>
+
+  <section class="card hidden" id="types-sec" style="margin-bottom:var(--gap)">
+    <h2 class="sec-h">3. אילו סוגי תנועה לכלול?</h2>
+    <p class="hint">סימנתי מראש את מה ש-Google מזהה כשייט. אפשר לשנות.</p>
+    <div class="types" id="types"></div>
+  </section>
+
+  <section class="card hidden" id="trips-sec">
+    <h2 class="sec-h">4. ההפלגות שנמצאו</h2>
+    <p class="hint" id="trips-sum"></p>
+    <div class="trips" id="trips"></div>
+    <div class="actions">
+      <button class="btn primary" id="download"><span data-ico="arrow-down" data-s="18"></span>הורד קובץ הפלגות</button>
+      <button class="btn hidden" id="share"><span data-ico="share-2" data-s="18"></span>שתף קובץ</button>
+      <button class="btn quiet" id="show">הצג מה יש בקובץ</button>
+    </div>
+    <div class="preview hidden" id="preview"><p>זה התוכן המלא של הקובץ שיורד – רק ההפלגות שסימנת:</p><pre id="preview-pre"></pre></div>
+  </section>
+</div>
+<script src="icons.js?v=5.4"></script>
+<script src="sailing-export.js?v=5.4"></script>
+</body>
+</html>
