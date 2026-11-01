@@ -80,7 +80,10 @@ function samplePoints(trip, s) {
   if (L < 20 && s.durMin < 8 * 60) return [s.centroid];
   const k = Math.min(5, Math.max(2, Math.ceil(L / 25)));
   const S = tms(tStart(trip)), E = tms(tEnd(trip));
-  return Array.from({ length: k }, (_, i) => posAt(s.pts, S + (E - S) * (i + 0.5) / k, S, E));
+  // נקודות כפולות (למשל הלוך וחזור באותה דרך) – בקשה אחת לכל נקודה
+  const out = [];
+  Array.from({ length: k }, (_, i) => posAt(s.pts, S + (E - S) * (i + 0.5) / k, S, E)).forEach(p => { if (!out.some(q => distM(p, q) < 5000)) out.push(p); });
+  return out;
 }
 async function fetchWx(trip) {
   const s = stats(trip);
@@ -307,7 +310,7 @@ function openTrip(d, showRaw) {
       ${!manual && s.recNm != null ? `<div class="j-actions"><button type="button" class="btn" data-fix-rt>הלוך ושוב באותה דרך: ~${(s.recNm * 2).toFixed(1)} מייל</button>${s.fixed ? '<button type="button" class="btn quiet" data-fix-clear>בטל את התיקונים</button>' : ''}</div>` : ''}
     </details>
     <div class="t-actions"><span></span><button class="btn danger" data-del>${ico('trash-2', 16)}מחק</button></div>`;
-  requestAnimationFrame(() => initMap(body.querySelector('.t-map'), t, showRaw));
+  setTimeout(() => { if (body.isConnected) initMap(body.querySelector('.t-map'), t, showRaw); }, 0);
   body.querySelectorAll('[data-box]').forEach(b => b.addEventListener('toggle', () => { keepOpen[t.id] = { ...(keepOpen[t.id] || {}), [b.dataset.box]: b.open }; }));
   const savedMsg = body.querySelector('.saved-msg');
   const saved = (msgEl = savedMsg) => {

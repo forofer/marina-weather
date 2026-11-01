@@ -173,6 +173,9 @@ function sailFile(trips) {
   const lats = [...new Set(reqs.filter(u => /historical-forecast/.test(u) && /2026-05-28/.test(u)).map(u => new URL(u).searchParams.get('latitude')))];
   ok(lats.length >= 2, 'הפלגה ארוכה: נתונים מכמה נקודות לאורך הדרך', lats.join(','));
   ok(/נקודות לאורך המסלול/.test(await p.textContent('details.jtrip[open] [data-wx]')), 'כתוב שזה קירוב לאורך המסלול');
+  ok(await p.$eval('details.jtrip[open] .t-map', m => m.classList.contains('leaflet-container') && m.querySelector('path') != null), 'מפה גם להפלגה ידנית (קו מקווקו בין הנמלים)');
+  const dupLat = reqs.filter(u => /historical-forecast/.test(u) && /2026-05-28/.test(u)).map(u => new URL(u).searchParams.get('latitude'));
+  ok(new Set(dupLat).size === dupLat.length, 'בלי בקשות כפולות לאותה נקודה', dupLat.join(','));
   // מרחק חוצה חצות + אימות
   await p.click('details.jtrip[open] [data-box="fix"] summary');
   await p.fill('[data-dt="end"]', '2026-05-27T10:00'); await p.waitForTimeout(150);
