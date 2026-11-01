@@ -118,6 +118,11 @@ const MARINAS = [
   ['מרינה הרצליה', 32.1631, 34.7962], ['מרינה תל אביב', 32.0866, 34.7676], ['נמל יפו', 32.0533, 34.7503],
   ['מרינה אשדוד', 31.7945, 34.6300], ['מרינה אשקלון', 31.6828, 34.5561], ['מרינה חיפה', 32.8070, 35.0300], ['נמל עכו', 32.9195, 35.0685]
 ];
+// נמלים להפלגה שמוסיפים ביד (נקודת התחזית ומרחק בקו ישר). בקפריסין – קירוב, רק לבחירה ביד
+const PORTS = [...MARINAS,
+  ['מרינה לרנקה (קפריסין)', 34.9170, 33.6380], ['מרינה לימסול (קפריסין)', 34.6690, 33.0420], ['מרינה איה נאפה (קפריסין)', 34.9820, 33.9590],
+  ['פאפוס (קפריסין)', 34.7540, 32.4060], ['מרינה קרפאס (קפריסין)', 35.6280, 34.3640]];
+const portByName = n => PORTS.find(x => x[0] === n) || null;
 function nearestMarina(p, maxM = 2500) {
   let best = null;
   for (const [n, la, lo] of MARINAS) { const d = distM(p, [la, lo]); if (d <= maxM && (!best || d < best.d)) best = { n, d }; }
@@ -129,6 +134,30 @@ const localDate = t => new Intl.DateTimeFormat('en-CA', { timeZone: TL_TZ, year:
 const localHour = t => +new Intl.DateTimeFormat('en-GB', { timeZone: TL_TZ, hour: '2-digit', hourCycle: 'h23' }).format(new Date(t));
 const durTxt = m => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return h ? `${h} ש׳ ${mm} ד׳` : `${mm} ד׳`; };
 const r5 = x => Math.round(x * 1e5) / 1e5;
+
+// זריחה ושקיעה (נוסחת NOAA המקוצרת, דיוק של דקות) – לחישוב שעות לילה
+function sunTimes(ms, lat, lng) {
+  const rad = Math.PI / 180, d = Math.floor(ms / 86400000) + 0.5 - 10957.5 + 0.0008;   // ימים מ-J2000
+  const J = d - lng / 360, M = (357.5291 + 0.98560028 * J) % 360;
+  const C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+  const L = (M + C + 180 + 102.9372) % 360;
+  const Jt = 2451545 + J + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * L * rad);
+  const dec = Math.asin(Math.sin(L * rad) * Math.sin(23.44 * rad));
+  const cw = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * Math.sin(dec)) / (Math.cos(lat * rad) * Math.cos(dec));
+  if (cw < -1 || cw > 1) return null;
+  const w = Math.acos(cw) / rad / 360, toMs = jd => (jd - 2440587.5) * 86400000;
+  return { rise: toMs(Jt - w), set: toMs(Jt + w) };
+}
+// כמה דקות מההפלגה היו בחושך (בין השקיעה לזריחה)
+function nightMinutes(s, e, lat, lng) {
+  if (!(e > s)) return 0;
+  let day = 0;
+  for (let t = Math.floor(s / 86400000) * 86400000 - 86400000; t <= e + 86400000; t += 86400000) {
+    const st = sunTimes(t + 43200000, lat, lng); if (!st) continue;
+    day += Math.max(0, Math.min(e, st.set) - Math.max(s, st.rise));
+  }
+  return Math.max(0, Math.round((e - s - day) / 60000));
+}
 
 // נתוני הפלגה מחושבים מהמסלול הנקי (המרחק של Google לא תמיד אמין)
 // תיקון ידני (trip.fix): מסלול, שעות ומרחק כולל – כשחלק מההפלגה לא נרשם ב-Google
@@ -163,7 +192,8 @@ function tripStats(trip) {
   const far = pts.length ? pts.reduce((m, x) => distM(pts[0], x) > distM(pts[0], m) ? x : m, pts[0]) : null;
   return { pts, durMin, dist, nm, km: dist / 1000, avgKn: durMin > 0 ? (fx.nm > 0 && !fx.start && !fx.end ? dist0 / 1852 : nm) / (durMin / 60) : null,  // מרחק מתוקן בלי שעות מתוקנות – הממוצע לפי מה שנרשם
      maxKn: maxKn || null, from, to, centroid: c, farNm: far ? distM(pts[0], far) / 1852 : null, removed: (trip.path || []).length - pts.length,
-    recNm: dist0 / 1852, fixed: !!(fx.start || fx.end || fx.nm > 0 || fx.label) };
+    recNm: dist0 / 1852, fixed: !!(fx.start || fx.end || fx.nm > 0 || fx.label),
+    nightMin: nightMinutes(start, end, ...(pts[0] || c || [32.16, 34.79]).slice(0, 2)), days: Math.floor(durMin / 1440) };
 }
 const placeTxt = s => s.from && s.to ? (s.from === s.to ? `מ${s.from} ובחזרה` : `מ${s.from} אל ${s.to.replace(/^מרינה /, 'מרינה ')}`) : s.from ? `יציאה מ${s.from}` : s.to ? `הגעה אל ${s.to}` : 'בים';
 

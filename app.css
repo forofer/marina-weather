@@ -132,7 +132,7 @@ bdi { unicode-bidi: isolate; }
 /* ניווט תחתון בטלפון */
 .view-tabs {
   position: fixed; inset: auto 0 0 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
   background: var(--surface); border-top: 1px solid var(--line);
   padding: 0.25rem 0.5rem calc(0.25rem + env(safe-area-inset-bottom));
   box-shadow: 0 -2px 10px rgba(16, 42, 67, 0.06);
@@ -144,6 +144,7 @@ bdi { unicode-bidi: isolate; }
 }
 .tab .ti { display: inline-flex; align-items: center; justify-content: center; width: min(3.5rem, 100%); height: 1.9rem; border-radius: 999px; }
 .tab .tl { max-width: 100%; overflow-wrap: anywhere; text-align: center; line-height: 1.2; }
+a.tab { text-decoration: none; }
 .tab.active { color: var(--accent-ink); font-weight: 700; }
 .tab.active .ti { background: var(--accent-soft); }
 
@@ -488,7 +489,6 @@ body.modal-open { overflow: hidden; }
   .top { flex-wrap: wrap; row-gap: 0; }
   .brand { flex: 1 1 100%; }
   .top-actions { margin-inline-start: auto; }
-  #journal-btn { display: none; }   /* אין מקום – היומן זמין בקישור בתחתית */
   .dc-title { font-size: 1.25rem; }
   .day-tab { min-width: 0; padding-inline: 0.4rem; }
   .day-arrow { width: 1.75rem; }

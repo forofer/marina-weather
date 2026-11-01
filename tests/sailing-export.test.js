@@ -38,6 +38,21 @@ const ok = (c, n, x = '') => { if (c) { pass++; console.log('  ✓ ' + n); } els
     ok(errs.length === 0, 'אין שגיאות', errs.join('|'));
     await ctx.close();
   }
+  console.log('חיפוש לפי תאריכים');
+  { const ctx = await b.newContext({ acceptDownloads: true }); const p = await ctx.newPage(); await p.route(/fonts\./, r => r.abort()); await p.goto(page);
+    await p.setInputFiles('#file', path.join(__dirname, 'fixtures', 'timeline-android.json')); await p.waitForTimeout(200);
+    ok(await p.$eval('#merge-row', x => x.classList.contains('hidden')), 'בלי תאריכים – אין אפשרות איחוד');
+    await p.fill('#d-from', '2026-10-31'); await p.dispatchEvent('#d-from', 'change'); await p.waitForTimeout(100);
+    const rows = await p.$$eval('#trips .trip-row', x => x.map(r => [r.querySelector('small').textContent.split(' · ')[0], r.querySelector('input').checked]));
+    ok(rows.length === 3 && rows.every(([t, c]) => (t === 'שייט') === c), 'כל סוגי התנועה בתאריך, רק מה שלא ביבשה מסומן', JSON.stringify(rows));
+    await p.click('#trips .trip-row:nth-child(2) input'); await p.check('#merge'); await p.waitForTimeout(100);
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#download')]);
+    const out = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
+    ok(out.trips.length === 1 && out.trips[0].start < '2026-10-31T13:00' && out.trips[0].end >= '2026-10-31T15:00', 'איחוד קטעים להפלגה אחת', JSON.stringify(out.trips.map(t => [t.start, t.end])));
+    await p.click('#d-clear'); await p.waitForTimeout(100);
+    ok(await p.$$eval('#trips .trip-row', x => x.length) === 1, '"נקה" מחזיר לסינון לפי סוג');
+    await ctx.close(); }
+
   console.log('קובץ שגוי');
   { const ctx = await b.newContext(); const p = await ctx.newPage(); await p.route(/fonts\./, r => r.abort()); await p.goto(page);
     await p.setInputFiles('#file', path.join(__dirname, 'fixtures', 'timeline-bad.json')); await p.waitForTimeout(200);

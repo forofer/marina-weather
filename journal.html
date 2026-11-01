@@ -10,10 +10,9 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=5.6">
+  <link rel="stylesheet" href="app.css?v=5.7">
   <style>
-    body { padding-bottom: 2rem; }
-    .wrap { max-width: 48rem; margin: 0 auto; padding: 0 1rem; }
+    .wrap { max-width: 48rem; margin: 0 auto; }
     h1 { font-size: 1.375rem; margin: 0.75rem 0 0.25rem; }
     .lead { color: var(--ink-2); margin: 0 0 var(--gap); }
     .wrap > section, .wrap > details { margin-bottom: var(--gap); }
@@ -65,6 +64,27 @@
     .empty { text-align: center; color: var(--ink-2); padding: 1.5rem 1rem; }
     .hidden { display: none !important; }
     .nw { white-space: nowrap; }
+    .banner-j { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0 0 var(--gap); padding: 0.6rem 0.8rem; border-radius: var(--r-s); background: var(--accent-soft); font-size: 0.9375rem; }
+    .banner-j.warn { background: var(--maybe-soft); color: var(--maybe-ink); }
+    .banner-j .ico { flex: none; margin-top: 0.15rem; }
+    .banner-j .btn.quiet { min-height: 0; padding: 0 0.25rem; display: inline; color: inherit; text-decoration: underline; font-weight: 600; }
+    .fields select { min-height: 2.75rem; padding: 0.45rem 0.6rem; border-radius: var(--r-s); border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; width: 100%; }
+    .fields .check { flex-direction: row; align-items: center; gap: 0.5rem; color: var(--ink); min-height: 2.75rem; }
+    .fields .check input { width: 1.3rem; height: 1.3rem; min-height: 0; }
+    .t-manual { width: 5.5rem; height: 3.5rem; display: flex; align-items: center; justify-content: center; background: var(--surface-2); border-radius: 6px; color: var(--ink-3); }
+    .t-map.no-map { height: auto; }
+    #vessel-sec .fields { margin-top: 0.25rem; }
+    #print-area { display: none; }
+    @media print {
+      body > .app, .view-tabs { display: none !important; }
+      #print-area { display: block; color: #000; font-size: 9pt; }
+      #print-area h1 { font-size: 16pt; margin: 0 0 4pt; }
+      #print-area table { width: 100%; border-collapse: collapse; }
+      #print-area th, #print-area td { border: 1px solid #888; padding: 2pt 3pt; text-align: right; vertical-align: top; }
+      #print-area th { background: #eee; }
+      #print-area .sig { margin-top: 18pt; }
+      @page { size: A4 landscape; margin: 10mm; }
+    }
     .fix-note { display: flex; gap: 0.4rem; align-items: flex-start; margin: 0; font-size: 0.9375rem; background: var(--accent-soft); border-radius: var(--r-s); padding: 0.5rem 0.7rem; }
     .fix-note .ico { flex: none; margin-top: 0.2rem; color: var(--accent-ink); }
     .fix-box > summary { cursor: pointer; color: var(--accent-ink); font-weight: 600; min-height: 2.75rem; display: flex; align-items: center; }
@@ -73,21 +93,58 @@
   </style>
 </head>
 <body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><a class="brand-name" href="./" style="color:inherit;text-decoration:none"><span data-ico="anchor" data-s="20" class="brand-ico"></span>ים הרצליה</a></div>
+    <nav class="view-tabs" id="view-tabs" aria-label="מסכים">
+      <a class="tab" href="index.html#brief"><span class="ti" data-ico="compass" data-s="22"></span><span class="tl">סיכום</span></a>
+      <a class="tab" href="index.html#plan"><span class="ti" data-ico="sailboat" data-s="22"></span><span class="tl">תכנון</span></a>
+      <a class="tab" href="index.html#table"><span class="ti" data-ico="chart-column" data-s="22"></span><span class="tl">נתונים</span></a>
+      <a class="tab" href="index.html#windy"><span class="ti" data-ico="map" data-s="22"></span><span class="tl">מפה</span></a>
+      <a class="tab active" aria-current="page" href="journal.html"><span class="ti" data-ico="book-open" data-s="22"></span><span class="tl">יומן</span></a>
+    </nav>
+  </header>
 <div class="wrap">
-  <header class="top"><div class="brand"><a class="brand-name" href="./" style="color:inherit;text-decoration:none"><span data-ico="anchor" data-s="20" class="brand-ico"></span>ים הרצליה</a></div>
-    <div class="top-actions"><a class="btn quiet" href="./">לתחזית ←</a></div></header>
   <h1>יומן הפלגות</h1>
-  <p class="lead">ההפלגות שלך מציר הזמן של Google, עם מה שהתחזית אמרה באותן שעות ומה שהרגשת בים. נשמר רק בטלפון הזה.</p>
+  <p class="lead">ההפלגות שלך מציר הזמן של Google או שהוספת ביד, עם מה שהתחזית אמרה באותן שעות ומה שהרגשת בים. נשמר בטלפון הזה בלבד.</p>
+  <p class="banner-j hidden" id="home-tip"><span data-ico="info" data-s="18"></span><span><b>כדי שהיומן לא יימחק:</b> Safari מוחק נתונים של אתרים שלא נכנסים אליהם 7 ימים. הוסיפו את האתר למסך הבית (כפתור השיתוף ← "הוספה למסך הבית") ופתחו אותו משם. שימו לב: במסך הבית היומן מתחיל ריק – שחזרו אליו מגיבוי.</span></p>
+  <p class="banner-j warn hidden" id="backup-warn" role="status"></p>
 
   <section class="card" id="summary-sec"></section>
 
   <details class="card more" id="import-sec">
     <summary>הוספת הפלגות</summary>
     <div class="import-row">
-      <p class="hint" style="margin:0">אפשר לבחור את קובץ ציר הזמן המלא מ-Google (רק השייט יילקח ממנו, והשאר לא נשמר), קובץ הפלגות מסונן, או גיבוי של היומן. <a href="sailing-export.html">איך מייצאים מ-Google?</a></p>
+      <h3 class="h3">מקובץ</h3>
+      <p class="hint" style="margin:0">קובץ ציר הזמן המלא מ-Google (רק השייט יילקח ממנו), קובץ הפלגות מסונן, או גיבוי של היומן. <a href="sailing-export.html">איך מייצאים מ-Google, ואיך מוצאים הפלגה ש-Google לא זיהתה?</a></p>
       <label class="btn primary file-btn"><span data-ico="arrow-down" data-s="18"></span>בחירת קובץ<input type="file" id="file" accept=".json,application/json" aria-label="בחירת קובץ להוספה ליומן"></label>
       <p class="msg" id="import-msg" role="status"></p>
+      <h3 class="h3" style="margin-top:0.75rem">ביד – להפלגה ש-Google לא רשמה</h3>
+      <div class="fields" style="width:100%">
+        <label>יציאה<input type="datetime-local" id="m-start"></label>
+        <label>סיום<input type="datetime-local" id="m-end"></label>
+        <label>נמל יציאה<select id="m-from"></select></label>
+        <label>דרך (לא חובה)<select id="m-via"></select></label>
+        <label>נמל סיום<select id="m-to"></select></label>
+        <label>מרחק כולל (מייל)<input type="number" inputmode="decimal" step="0.1" min="0" id="m-nm" placeholder="לא חובה"></label>
+        <label class="wide">שם המסלול<input id="m-label" placeholder="למשל: הרצליה – לרנקה – הרצליה"></label>
+      </div>
+      <button type="button" class="btn" id="m-add">הוסף הפלגה</button>
+      <p class="msg" id="m-msg" role="status"></p>
     </div>
+  </details>
+
+  <details class="card more" id="vessel-sec" open>
+    <summary>כלי השיט</summary>
+    <div class="fields">
+      <label>שם הסירה<input data-vessel="name"></label>
+      <label>סוג ודגם<input data-vessel="type" placeholder="למשל: מפרשית 40 רגל"></label>
+      <label>אורך (מטר)<input data-vessel="loa" inputmode="decimal" placeholder="12"></label>
+      <label>מספר רישום<input data-vessel="reg"></label>
+      <label>MMSI / אות קריאה<input data-vessel="mmsi"></label>
+      <label>נמל בית<input data-vessel="home" placeholder="מרינה הרצליה"></label>
+    </div>
+    <p class="saved-msg" id="vessel-msg" role="status"></p>
   </details>
 
   <section aria-labelledby="list-title">
@@ -95,16 +152,24 @@
     <div class="trips" id="trips"></div>
   </section>
 
+  <section class="card" id="export-sec">
+    <h2 class="sec-h">יומן מודפס וטבלה</h2>
+    <p class="hint" style="margin-top:0">היומן כטבלה – להדפסה, ל-PDF (בהדפסה באייפון: "שמירה בקבצים") או לאקסל. שימושי לתיעוד ותק ימי.</p>
+    <div class="t-actions"><button class="btn" id="print"><span data-ico="copy" data-s="18"></span>הדפסה / PDF</button><button class="btn" id="csv"><span data-ico="arrow-down" data-s="18"></span>טבלה לאקסל (CSV)</button></div>
+  </section>
+
   <section class="card" id="backup-sec">
     <h2 class="sec-h">גיבוי</h2>
-    <p class="hint" style="margin-top:0">היומן נשמר בדפדפן בטלפון הזה בלבד. ניקוי נתוני הדפדפן או החלפת טלפון ימחקו אותו – כדאי לשמור גיבוי מדי פעם (ולשחזר דרך "הוספת הפלגות").</p>
+    <p class="hint" style="margin-top:0">היומן נשמר בדפדפן בטלפון הזה בלבד. ניקוי נתוני הדפדפן או החלפת טלפון ימחקו אותו – כדאי לשמור גיבוי מדי פעם, למשל ב-iCloud Drive (ולשחזר דרך "הוספת הפלגות").</p>
     <button class="btn" id="backup"><span data-ico="arrow-down" data-s="18"></span>שמור גיבוי של היומן</button>
   </section>
 </div>
+</div>
+<div id="print-area" aria-hidden="true"></div>
 <script src="lib/leaflet.js"></script>
-<script src="icons.js?v=5.6"></script>
-<script src="core.js?v=5.6"></script>
-<script src="timeline-parse.js?v=5.6"></script>
-<script src="journal.js?v=5.6"></script>
+<script src="icons.js?v=5.7"></script>
+<script src="core.js?v=5.7"></script>
+<script src="timeline-parse.js?v=5.7"></script>
+<script src="journal.js?v=5.7"></script>
 </body>
 </html>

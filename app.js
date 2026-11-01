@@ -1036,7 +1036,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const savedPlan = await store.get('local', 'plan_v1');
   if (savedPlan && savedPlan.date >= today0) plan = savedPlan;
   const lastView = await store.get('local', 'view_v3');
-  if (lastView === 'table' || lastView === 'plan') showView(lastView);
+  const hashView = location.hash.slice(1);   // מעבר מדף היומן: ./#plan
+  if (VIEWS.includes(hashView)) { showView(hashView); history.replaceState(null, '', location.pathname + location.search); }
+  else if (lastView === 'table' || lastView === 'plan') showView(lastView);
   document.querySelectorAll('.map-bar .seg').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('.map-bar .seg').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', x === b); });
     windyOverlay = b.dataset.overlay;

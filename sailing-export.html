@@ -8,7 +8,7 @@
   <script>try{var th=localStorage.getItem("theme");if(th)document.documentElement.setAttribute("data-theme",th);}catch(e){}</script>
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
-  <link rel="stylesheet" href="app.css?v=5.6">
+  <link rel="stylesheet" href="app.css?v=5.7">
   <style>
     body { padding-bottom: 2rem; }
     .wrap { max-width: 44rem; margin: 0 auto; padding: 0 1rem; }
@@ -36,6 +36,11 @@
     .preview { margin-top: var(--gap); font-size: 0.8125rem; color: var(--ink-2); }
     .preview pre { white-space: pre-wrap; word-break: break-all; max-height: 14rem; overflow: auto; background: var(--surface-2); padding: 0.6rem; border-radius: var(--r-s); direction: ltr; text-align: left; }
     .hidden { display: none !important; }
+    .date-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: flex-end; }
+    .date-row label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; color: var(--ink-2); }
+    .date-row input { min-height: 2.75rem; padding: 0.4rem 0.6rem; border-radius: var(--r-s); border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; }
+    .merge { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; min-height: 2.75rem; }
+    .merge input { width: 1.3rem; height: 1.3rem; }
   </style>
 </head>
 <body>
@@ -63,6 +68,10 @@
     <h2 class="sec-h">3. אילו סוגי תנועה לכלול?</h2>
     <p class="hint">סימנתי מראש את מה ש-Google מזהה כשייט. אפשר לשנות.</p>
     <div class="types" id="types"></div>
+    <h3 class="sec-h" style="margin-top:1rem;font-size:1rem">הפלגה ש-Google לא זיהתה כשייט?</h3>
+    <p class="hint">בהפלגות ארוכות (למשל לקפריסין) Google לפעמים רושמת "תנועה לא ידועה", "מעבורת" או כמה קטעים קצרים. בחרו תאריכים – ויוצג כל מה שנרשם בהם, מכל סוג.</p>
+    <div class="date-row"><label>מתאריך<input type="date" id="d-from"></label><label>עד תאריך<input type="date" id="d-to"></label><button type="button" class="btn quiet" id="d-clear">נקה</button></div>
+    <label class="merge hidden" id="merge-row"><input type="checkbox" id="merge"> לאחד את הקטעים המסומנים להפלגה אחת</label>
   </section>
 
   <section class="card hidden" id="trips-sec">
@@ -79,8 +88,8 @@
     <div class="preview hidden" id="preview"><p>זה התוכן המלא של הקובץ שיורד – רק ההפלגות שסימנת:</p><pre id="preview-pre"></pre></div>
   </section>
 </div>
-<script src="icons.js?v=5.6"></script>
-<script src="timeline-parse.js?v=5.6"></script>
-<script src="sailing-export.js?v=5.6"></script>
+<script src="icons.js?v=5.7"></script>
+<script src="timeline-parse.js?v=5.7"></script>
+<script src="sailing-export.js?v=5.7"></script>
 </body>
 </html>

@@ -26,14 +26,14 @@ function mockWeather(u) {
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, acceptDownloads: true });
   let failWx = false;
   const reqs = [];
-  await ctx.route(/fonts\./, r => r.abort());
+  await ctx.route(/fonts\.|goatcounter|zgo|ensemble-api|\/\/api\.open-meteo/, r => r.abort());
   await ctx.route(/openseamap|arcgisonline/, r => { reqs.push(r.request().url()); r.abort(); });
   await ctx.route(/open-meteo\.com/, r => { const u = r.request().url(); reqs.push(u);
     if (failWx) return r.fulfill({ status: 500, contentType: 'application/json', body: '{"reason":"תקלה מדומה"}' });
     r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(mockWeather(u)) }); });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  p.on('request', r => { const u = r.url(); if (!u.startsWith('file:') && !/fonts\.|open-meteo|openseamap|arcgisonline/.test(u)) reqs.push('OTHER ' + u); });
+  p.on('request', r => { const u = r.url(); if (!u.startsWith('file:') && !/fonts\.|open-meteo|openseamap|arcgisonline|zgo|goatcounter/.test(u)) reqs.push('OTHER ' + u); });
 
   console.log('יומן ריק');
   await p.goto(url('journal.html'));
@@ -151,6 +151,55 @@ function mockWeather(u) {
     corr.trips = [{ ...j.trips[0], deleted: true }]; fs.writeFileSync(f, JSON.stringify(corr));
     await p.setInputFiles('#file', f); await p.waitForTimeout(200);
     ok(await p.$$eval('details.jtrip', x => x.length) === 0 && /אחת נמחקה/.test(await p.textContent('#import-msg')), 'קובץ שמוחק הפלגה קיימת'); }
+
+  console.log('הפלגה ביד, כמה ימים');
+  { await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForTimeout(200);
+    ok(await p.$eval('#import-sec', d => d.open), 'אזור ההוספה פתוח');
+    await p.fill('#m-start', '2026-05-28T08:00'); await p.fill('#m-end', '2026-06-02T18:00');
+    await p.selectOption('#m-via', 'מרינה לרנקה (קפריסין)'); await p.fill('#m-label', 'הרצליה – לרנקה – הרצליה'); await p.fill('#m-nm', '330');
+    await p.click('#m-add'); await p.waitForTimeout(300);
+    ok(/נוספה/.test(await p.textContent('#m-msg')), 'ההפלגה נוספה');
+    const sm = (await p.textContent('details.jtrip summary')).replace(/\s+/g, ' ');
+    ok(/לרנקה/.test(sm) && /330\.0 מייל/.test(sm) && /5 ימים/.test(sm) && /ש׳ לילה/.test(sm), 'שורה: מסלול, מרחק, ימים ושעות לילה', sm);
+    const st = await p.evaluate(() => tripStats(loadJournal().trips[0]));
+    ok(st.days === 5 && st.nightMin / 60 > 45 && st.nightMin / 60 < 55, 'ימים בים ושעות לילה מחושבים', JSON.stringify([st.days, st.nightMin]));
+    await p.waitForSelector('details.jtrip[open] .wx-tab, details.jtrip[open] [data-retry]', { timeout: 5000 });
+    const wreq = reqs.filter(u => /historical-forecast/.test(u)).pop();
+    ok(/start_date=2026-05-28&end_date=2026-06-02/.test(wreq) && /latitude=33\./.test(wreq), 'התחזית לכל הימים, באמצע הדרך', wreq);
+    await p.click('#m-add'); await p.fill('#m-start', '2026-05-29T08:00'); await p.fill('#m-end', '2026-05-29T10:00'); await p.click('#m-add'); await p.waitForTimeout(100);
+    ok(/כבר ביומן/.test(await p.textContent('#m-msg')), 'לא מוסיפים הפלגה חופפת'); }
+
+  console.log('פרטי יומן וכלי שיט');
+  { await p.selectOption('details.jtrip[open] [data-note="role"]', 'צוות'); await p.waitForTimeout(100);
+    await p.fill('[data-note="skipper"]', 'דני'); await p.fill('[data-note="engStart"]', '1200'); await p.fill('[data-note="engEnd"]', '1235');
+    await p.check('[data-note="safety"]'); await p.fill('[data-note="events"]', 'מעבר למנוע בלילה'); await p.waitForTimeout(600);
+    ok(/כסקיפר\s*0/.test((await p.textContent('#summary-sec')).replace(/\s+/g, ' ')), 'תפקיד "צוות" לא נספר כסקיפר');
+    await p.evaluate(() => { document.getElementById('vessel-sec').open = true; });
+    await p.fill('[data-vessel="name"]', 'אוריה'); await p.fill('[data-vessel="loa"]', '12'); await p.waitForTimeout(600);
+    await p.reload(); await p.waitForTimeout(200);
+    ok(await p.inputValue('[data-vessel="name"]') === 'אוריה' && /אוריה/.test(await p.textContent('#summary-sec')), 'פרטי הסירה נשמרו');
+    await p.click('details.jtrip summary'); await p.waitForTimeout(200);
+    ok(await p.inputValue('[data-note="skipper"]') === 'דני' && await p.isChecked('[data-note="safety"]') && await p.inputValue('[data-note="role"]') === 'צוות', 'פרטי היומן נשמרו');
+    ok(/נוצר/.test(await p.textContent('details.jtrip[open] .t-body')), 'מתי נוצרה הרשומה');
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#csv')]);
+    const csv = fs.readFileSync(await dl.path(), 'utf8');
+    ok(csv.charCodeAt(0) === 0xfeff && /אוריה/.test(csv) && /שעות לילה/.test(csv) && /מעבר למנוע בלילה/.test(csv) && /1200–1235/.test(csv) && /הוזן ביד/.test(csv), 'טבלת CSV עם הסירה, השעות והאירועים');
+    const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('#backup')]);
+    const bk2 = JSON.parse(fs.readFileSync(await dl2.path(), 'utf8'));
+    ok(bk2.vessel.name === 'אוריה' && bk2.trips[0].source === 'manual' && bk2.trips[0].ports.via === 'מרינה לרנקה (קפריסין)', 'הגיבוי כולל את הסירה וההפלגה הידנית');
+    ok(await p.$eval('#backup-warn', x => x.classList.contains('hidden')), 'אחרי גיבוי אין תזכורת');
+    await p.evaluate(() => { const j = loadJournal(); j.lastBackup = '2026-01-01T00:00:00Z'; localStorage.setItem('journal_v1', JSON.stringify(j)); });
+    await p.reload(); await p.waitForTimeout(100);
+    ok(!(await p.$eval('#backup-warn', x => x.classList.contains('hidden'))), 'תזכורת גיבוי כשהגיבוי ישן'); 
+    await p.evaluate(() => { window.print = () => { window.__printed = true; }; }); await p.click('#print');
+    ok(await p.evaluate(() => window.__printed) && /אוריה/.test(await p.textContent('#print-area')) && await p.$$eval('#print-area tbody tr', x => x.length) === 1, 'יומן מודפס'); }
+
+  console.log('ניווט בין היומן לתחזית');
+  { ok(await p.$eval('#view-tabs a.tab.active', a => a.textContent.trim()) === 'יומן', 'לשונית "יומן" פעילה בדף היומן');
+    await p.click('#view-tabs a[href="index.html#plan"]'); await p.waitForTimeout(1200);
+    ok(/index\.html$/.test(p.url()) && await p.isVisible('#plan-view') && await p.$eval('#view-plan', b => b.classList.contains('active')), 'לשונית "תכנון" פותחת את מסך התכנון', p.url());
+    await p.click('#view-journal'); await p.waitForTimeout(400);
+    ok(/journal\.html$/.test(p.url()), 'לשונית "יומן" באפליקציה פותחת את היומן'); }
 
   console.log('תצוגה');
   const ov = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

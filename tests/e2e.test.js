@@ -61,8 +61,10 @@ const clipped = p => p.evaluate(() => {
   {
     const { p, ctx, errs } = await open(b);
     ok(/התחזית נמשכה/.test(await txt(p, '#updated')), 'מוצג גיל הנתונים');
+    // ב-file:// כרומיום לפעמים מאבד את localStorage בטעינה מחדש – מחזירים את התחזית השמורה לפני שהאתר עולה
+    const saved = await p.evaluate(() => localStorage.getItem('cache_v6'));
     await p.unrouteAll(); await p.route(/open-meteo|goatcounter|zgo|fonts\./, r => r.abort('internetdisconnected'));
-    await p.addInitScript(() => { const n = Date.now; Date.now = () => n() + 5 * 3600e3; });
+    await p.addInitScript(c => { const n = Date.now; Date.now = () => n() + 5 * 3600e3; try { if (!localStorage.getItem('cache_v6')) localStorage.setItem('cache_v6', c); if (!localStorage.getItem('settings_v3')) localStorage.setItem('settings_v3', JSON.stringify({ seaCharacter: false })); } catch (_) {} }, saved);
     await p.reload(); await p.waitForSelector('#updated.stale', { timeout: 8000 }).catch(() => {}); await p.waitForSelector('#banner:not(.hidden)', { timeout: 8000 }).catch(() => {});
     const upd = await txt(p, '#updated');
     ok(/לא עדכני/.test(upd), 'בלי רשת ועם נתונים בני 5 שעות – כתוב "לא עדכני"', upd);
