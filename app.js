@@ -411,7 +411,7 @@ function renderWeekList() {
     const bw = !hs.late && hs.best ? hs.best : null;
     const f = (k, v) => `<span class="f"><small>${k}</small> ${v}</span>`;
     const meta = hs.late ? '<span class="f">הטווח שלך היום הסתיים</span>' :
-      f('חלון', bw ? `<b>${span(bw.start, bw.end)}</b>` : 'אין') +
+      (d === todayStr() ? `<span class="f"><small>מהשעה הנוכחית</small></span>` : '') + f('חלון', bw ? `<b>${span(bw.start, bw.end)}</b>` : 'אין') +
       f('רוח', `<b>${range(mn('wind'), mx('wind'))}</b> קשר`) +
       f('משבים עד', `<b>${fmtTh(mx('gust'), 'gust')}</b> קשר`) +
       f('גלים עד', `<b>${fmtTh(mx('wave'), 'wave')}</b> ס״מ`);
@@ -453,7 +453,7 @@ function renderWeek() {
 }
 
 /* ===================== נתונים ===================== */
-let modelsOpen = false;
+let modelsOpen = false, seaOpen = false;
 function renderSummaryRow() {
   const hs = heroStatus(selectedDate);
   const s = daySummary(selectedDate);
@@ -462,7 +462,7 @@ function renderSummaryRow() {
   const title = hs.late ? 'היום כבר נגמר' : hs.title;
   const sunset = s.sun ? s.sun.sunset.slice(11) : null;
   const chip = (k, v, u = '') => `<span class="chip">${k} <b>${bdi(v)}</b>${u}</span>`;
-  $('summary').innerHTML = `${pill(lvl, title)}<span class="chip">${n.full}</span><span class="sep" aria-hidden="true"></span>
+  $('summary').innerHTML = `${pill(lvl, title)}<span class="chip">${n.full}</span><span class="chip">כל היום</span><span class="sep" aria-hidden="true"></span>
     ${chip('רוח עד', fmtTh(s.maxWind, 'wind'), ' קשר')}${chip('משבים עד', fmtTh(s.maxGust, 'gust'), ' קשר')}${chip('גלים עד', fmtTh(s.maxWave, 'wave'), ' ס״מ')}
     ${sunset ? chip('שקיעה', sunset) : ''}${isNum(s.sst) ? chip('מים', fmt(s.sst) + '°') : ''}
     ${s.thunder ? `<span class="pill lv2">${ico('cloud-lightning', 16)}רעמים</span>` : ''}`;
@@ -490,9 +490,13 @@ function renderTable() {
   h += grp('ים');
   h += row('<span title="גובה גל משמעותי: הממוצע של השליש הגבוה מהגלים">גלים (ס״מ)</span>', r => cell(r, fmtTh(r.wave, 'wave'), ov(r, 'wave')));
   h += row('מחזור (שנ׳)', r => cell(r, fmt(r.wavePer, 1), (r.wavePer != null && r.wavePer < settings.minPeriod && (r.wave ?? 0) >= settings.maxWave * 0.7) ? ' ov1' : ''));
-  h += row('כיוון גלים', r => cell(r, `${arrowTxt(r.waveDir)}<span class="sub">${compass(r.waveDir)}</span>`));
-  h += row('גלי רוח (ס״מ · שנ׳)', r => cell(r, r.ww == null ? '–' : `${CM(r.ww)}<span class="sub">${fmt(r.wwPer, 1)}</span>`));
-  h += row('סוול (ס״מ · שנ׳)', r => cell(r, r.sw == null ? '–' : `${CM(r.sw)}<span class="sub">${fmt(r.swPer, 1)}</span>`));
+  // פירוט הים (כיוון, גלי רוח, סוול) – מקופל; הנתונים העיקריים תמיד גלויים
+  h += `<tr class="mtoggle"><th class="lbl"><button class="btn quiet" id="sea-toggle" aria-expanded="${seaOpen}">${ico('chevron-down', 16)}${seaOpen ? 'הסתר' : 'הצג'} פירוט גלים</button></th><td colspan="${cols}"></td></tr>`;
+  if (seaOpen) {
+    h += row('כיוון גלים', r => cell(r, `${arrowTxt(r.waveDir)}<span class="sub">${compass(r.waveDir)}</span>`), 'mrow');
+    h += row('גלי רוח (ס״מ · שנ׳)', r => cell(r, r.ww == null ? '–' : `${CM(r.ww)}<span class="sub">${fmt(r.wwPer, 1)}</span>`), 'mrow');
+    h += row('סוול (ס״מ · שנ׳)', r => cell(r, r.sw == null ? '–' : `${CM(r.sw)}<span class="sub">${fmt(r.swPer, 1)}</span>`), 'mrow');
+  }
   h += row('<span title="נוח / בינוני / מאתגר / קשה – לפי רוח (הגבוהה בין המודלים), משבים, גובה, גלים קצרים וים צולב">אופי הים</span>', r => { const d = seaDemand(r); return cell(r, d ? ['נוח', 'בינוני', 'מאתגר', 'קשה'][d.lvl] : '–', d && d.lvl >= 2 ? ' ov1' : '', d && d.why.length ? d.why.join(' · ') : ''); });
   h += row('מים (°C)', r => cell(r, fmt(r.sst, 1)));
   h += grp('מזג אוויר');
@@ -511,6 +515,7 @@ function renderTable() {
   const t = $('table-wrap').querySelector('table');
   t.addEventListener('click', e => { const c = e.target.closest('[data-h]'); if (c) selectHour(+c.dataset.h); });
   const mt = $('models-toggle'); if (mt) mt.addEventListener('click', e => { e.stopPropagation(); modelsOpen = !modelsOpen; renderTable(); $('models-toggle')?.focus(); });
+  $('sea-toggle').addEventListener('click', e => { e.stopPropagation(); seaOpen = !seaOpen; renderTable(); $('sea-toggle')?.focus(); });
   // השעה הנבחרת נראית בתוך הגלילה; הרמז להחלקה מוצג רק כשיש מה לגלול
   const sel = t.querySelector('thead th.sel'), w = $('table-wrap');
   document.querySelector('.swipe-hint .swipe').classList.toggle('hidden', !$('table-view').classList.contains('hidden') && w.scrollWidth <= w.clientWidth + 2);
@@ -519,7 +524,7 @@ function renderTable() {
 
 /* ===================== תכנון הפלגה ===================== */
 let plan = { date: null, from: 9, to: 14, course: '' };
-let trips = [];
+let trips = [], pastTrips = [];   // pastTrips: תכניות שהזמן שלהן עבר – נשמרות, והיומן מציע להוסיף אותן
 const COURSES = [
   { v: '', t: 'סיבוב חופשי' },
   { v: '15', t: 'צפונה (נתניה)' },
@@ -597,7 +602,7 @@ function planText(p, rows, s, lvl, title) {
 function fillPlanForm() {
   const dates = weekDates();
   if (!plan.date || !dates.includes(plan.date)) plan.date = selectedDate && dates.includes(selectedDate) ? selectedDate : dates[0];
-  $('p-date').innerHTML = dates.map(d => `<option value="${d}">${dayName(d).full}</option>`).join('');
+  $('p-date').innerHTML = dates.map(d => { const n = dayName(d); return `<option value="${d}">${n.name} ${n.date}</option>`; }).join('');
   $('p-from').innerHTML = [...Array(24).keys()].map(h => `<option value="${h}">${hm(h)}</option>`).join('');
   $('p-to').innerHTML = [...Array(24).keys()].map(h => h + 1).map(h => `<option value="${h}">${h === 24 ? '24:00' : hm(h)}</option>`).join('');
   $('p-course').innerHTML = COURSES.map(c => `<option value="${c.v}">${c.t}</option>`).join('');
@@ -619,7 +624,7 @@ function renderTrips() {
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); } });
   });
   $('p-saved').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async e => {
-    e.stopPropagation(); trips.splice(+b.dataset.del, 1); await store.set('sync', 'trips_v1', trips); renderPlan(); renderWeek();
+    e.stopPropagation(); trips.splice(+b.dataset.del, 1); await store.set('sync', 'trips_v1', [...pastTrips, ...trips]); renderPlan(); renderWeek();
   }));
 }
 
@@ -682,7 +687,7 @@ function renderPlan() {
   const demandOnly = lvl === 1 && !extraWarn.length && rows.every(r => verdict(r).reasons.every(isDemandReason));
   const pTitle = demandOnly && s.dm ? `אפשר לצאת – ${s.dm.t}` : VERDICT[lvl].long;
   const why = demandOnly && s.dm ? `${s.dm.d}: ${s.dm.why.slice(0, 2).join(' · ')}` : problems.length ? problems.slice(0, 3).join(' · ') : 'כל השעות, כולל שעת החזרה, בתוך הספים <button type="button" class="linkish" data-open-settings>שהגדרת</button>';
-  const actions = `<button id="p-save" class="btn"${saved ? ' aria-pressed="true"' : ''}>${ico(saved ? 'bookmark-check' : 'bookmark', 18)}${saved ? 'נשמרה' : 'שמור הפלגה'}</button>
+  const actions = `<button id="p-save" class="btn"${saved ? ' aria-pressed="true"' : ''}>${ico(saved ? 'bookmark-check' : 'bookmark', 18)}${saved ? 'התכנית נשמרה' : 'שמור תכנית הפלגה'}</button>
     <button id="p-copy" class="btn">${ico('share-2', 18)}שתף סיכום</button><span id="p-copied" class="copied" role="status"></span>`;
   const altHtml = alts.length ? `<div class="alts"><span class="muted">זמנים טובים יותר באותו אורך:</span>${alts.map(a => `<button class="btn alt" data-d="${a.date}" data-f="${a.from}" data-t="${a.to}">${dayName(a.date).name} ${span(a.from, a.to)}</button>`).join('')}</div>`
     : (lvl > 0 ? '<p class="note">לא נמצא זמן מתאים באותו אורך ב-7 הימים הקרובים.</p>' : '');
@@ -716,8 +721,9 @@ function renderPlan() {
   out.innerHTML = `
     ${durHtml}
     <div class="p-top">
-      ${decisionCard({ lvl, scope: tripLine, title: pTitle, why, actions, extra: rainCard(rain.during) + rainCard(rain.after, { after: true }) + altHtml, basis: problems.length > 0 })}
+      ${decisionCard({ lvl, scope: tripLine, title: pTitle, why, actions: '', extra: rainCard(rain.during) + rainCard(rain.after, { after: true }) + altHtml, basis: problems.length > 0 })}
       <section class="card p-metrics" aria-label="רוח, משבים וגלים לאורך ההפלגה">${metrics}</section>
+      <div class="dc-actions p-actions">${actions}</div>
     </div>
     <div class="p-grid">
       <section class="card p-sec" aria-labelledby="pd-title">
@@ -762,8 +768,15 @@ function renderPlan() {
   }));
   $('p-save').addEventListener('click', async () => {
     if (tripSaved()) trips = trips.filter(t => !(t.date === plan.date && t.from === plan.from && t.to === plan.to));
-    else { track('plan-save'); trips.push({ ...plan }); trips.sort((a, b) => (a.date + pad2(a.from)) < (b.date + pad2(b.from)) ? -1 : 1); }
-    await store.set('sync', 'trips_v1', trips);
+    else {
+      track('plan-save');
+      // צילום של התחזית בזמן השמירה – כדי להשוות אחר כך ביומן בין התחזית לחוויה בים
+      const fcRows = rows.filter(r => !r.placeholder).map(r => ({ t: r.t, hour: r.hour, wind: r.wind, gust: r.gust, dir: r.dir, wave: r.wave, wavePer: r.wavePer, waveDir: r.waveDir,
+        ww: r.ww, wwPer: r.wwPer, wwDir: r.wwDir, sw: r.sw, swPer: r.swPer, swDir: r.swDir, rain: r.rain, code: r.code, models: Object.fromEntries(Object.entries(r.models || {}).map(([k, m]) => [k, { wind: m.wind }])) }));
+      trips.push({ ...plan, fc: { savedAt: new Date().toISOString(), rows: fcRows } });
+      trips.sort((a, b) => (a.date + pad2(a.from)) < (b.date + pad2(b.from)) ? -1 : 1);
+    }
+    await store.set('sync', 'trips_v1', [...pastTrips, ...trips]);
     renderPlan(); renderWeek(); $('p-save').focus();
   });
   $('p-copy').addEventListener('click', async () => {
@@ -824,7 +837,7 @@ function renderUpdated() {
   if (!data) return;
   const t = new Date(data.fetchedAt), age = Date.now() - data.fetchedAt;
   const clock = t.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-  $('updated').textContent = `התחזית נמשכה ${ageText(age)} (${clock})` + (age > 3 * 3600e3 ? ' · לא עדכני' : '');
+  $('updated').textContent = `הנתונים עודכנו ${ageText(age)} (${clock})` + (age > 3 * 3600e3 ? ' · לא עדכני' : '');
   $('updated').classList.toggle('stale', age > 3 * 3600e3);
 }
 function showBanner(msg, isError) {
@@ -875,7 +888,9 @@ const WINDY_LAYERS = { wind: 'רוח', gust: 'משבים', waves: 'גלים', sw
 const WINDY_EXTERNAL = ['waves', 'swell1'];
 function windyUrl(overlay = windyOverlay) {
   const s = settings;
-  return `https://embed.windy.com/embed2.html?lat=${s.windLat}&lon=${s.windLon - 0.25}&detailLat=${s.windLat}&detailLon=${s.windLon}` +
+  // בטלפון המרכז קרוב לנקודה, כדי שחלון המידע שנפתח לידה לא ייחתך בקצה
+  const off = window.innerWidth < 600 ? 0.04 : 0.25;
+  return `https://embed.windy.com/embed2.html?lat=${s.windLat}&lon=${(s.windLon - off).toFixed(3)}&detailLat=${s.windLat}&detailLon=${s.windLon}` +
     `&width=776&height=470&zoom=9&level=surface&overlay=${overlay}&product=ecmwf&menu=&message=true&marker=true` +
     `&calendar=now&pressure=true&type=map&location=coordinates&detail=&metricWind=kt&metricTemp=%C2%B0C&radarRange=-1`;
 }
@@ -893,8 +908,8 @@ function applyWindyLayer() {
   $('windy-frame').classList.toggle('hidden', ext);
   if (ext) {
     const name = WINDY_LAYERS[windyOverlay];
-    $('windy-ext-t').textContent = `שכבת ה${name} לא זמינה במפה המוטמעת`;
-    $('windy-ext-l').textContent = `פתח שכבת ${name} ב-Windy`;
+    $('windy-ext-t').textContent = `שכבת ה${name} זמינה באתר Windy`;
+    $('windy-ext-l').textContent = 'פתח ב-Windy';
     $('windy-ext-a').href = windyFull();
     $('windy-wrap').classList.add('loaded');
     return;
@@ -1032,7 +1047,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   VIEWS.forEach(v => $('view-' + v).addEventListener('click', () => showView(v)));
   ['p-date', 'p-from', 'p-to', 'p-course'].forEach(id => $(id).addEventListener('change', onPlanChange));
   const today0 = todayStr();
-  trips = ((await store.get('sync', 'trips_v1')) || []).filter(t => t.date >= today0);
+  const allTrips = (await store.get('sync', 'trips_v1')) || [];
+  trips = allTrips.filter(t => t.date >= today0);
+  pastTrips = allTrips.filter(t => t.date < today0 && t.date >= new Date(Date.parse(today0 + 'T12:00:00Z') - 60 * 86400000).toISOString().slice(0, 10));   // עד חודשיים אחורה – ליומן
   const savedPlan = await store.get('local', 'plan_v1');
   if (savedPlan && savedPlan.date >= today0) plan = savedPlan;
   const lastView = await store.get('local', 'view_v3');

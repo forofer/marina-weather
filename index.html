@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
   <link rel="stylesheet" href="lib/leaflet.css">
-  <link rel="stylesheet" href="app.css?v=5.7">
+  <link rel="stylesheet" href="app.css?v=6.0">
 </head>
 <body>
 <div class="app">
@@ -120,9 +120,9 @@
     <div class="windy-wrap" id="windy-wrap"><span class="windy-loading">טוען מפה…</span><iframe id="windy-frame" title="מפת Windy"></iframe>
       <div class="windy-ext hidden" id="windy-ext" role="status">
         <span class="we-ico" data-ico="waves" data-s="28"></span>
-        <p class="we-t" id="windy-ext-t">שכבת הגלים לא זמינה במפה המוטמעת</p>
-        <p class="we-s">Windy לא מאפשר להציג את השכבה הזו באופן אמין בתוך אתר אחר – היא נפתחת במקומה ברוח. אפשר לפתוח אותה באתר Windy, ואת נתוני הגלים לנקודה שלנו רואים במסך "נתונים".</p>
-        <a class="btn primary" id="windy-ext-a" href="https://www.windy.com/" target="_blank" rel="noopener"><span data-ico="external-link" data-s="18"></span><span id="windy-ext-l">פתח שכבת גלים ב-Windy</span></a>
+        <p class="we-t" id="windy-ext-t">שכבת הגלים זמינה באתר Windy</p>
+        <a class="btn primary" id="windy-ext-a" href="https://www.windy.com/" target="_blank" rel="noopener"><span data-ico="external-link" data-s="18"></span><span id="windy-ext-l">פתח ב-Windy</span></a>
+        <details class="we-why"><summary>למה?</summary><p class="we-s">Windy לא מציג את השכבה הזו באופן אמין בתוך אתר אחר – היא מתחלפת לרוח. נתוני הגלים לנקודה שלנו נמצאים גם במסך "נתונים".</p></details>
       </div></div>
   </main>
 
@@ -174,15 +174,15 @@
   </section>
 
   <footer class="foot">
-    <span><a href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים של השירות המטאורולוגי</a> · <a id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a> · <a href="journal.html">יומן הפלגות</a> · <a href="sailing-export.html">סינון הפלגות מציר הזמן</a></span>
+    <span><a href="https://ims.gov.il/he/coasts" target="_blank" rel="noopener">תחזית ים של השירות המטאורולוגי</a> · <a id="windy-link" href="https://www.windy.com/32.165/34.785" target="_blank" rel="noopener">Windy</a> · <a href="journal.html">יומן הפלגות</a></span>
     <span>נתונים: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · ECMWF · DWD · NOAA · אייקונים: Lucide</span>
   </footer>
 </div>
   <script src="lib/leaflet.js"></script>
-  <script src="icons.js?v=5.7"></script>
-  <script src="core.js?v=5.7"></script>
-  <script src="data.js?v=5.7"></script>
-  <script src="app.js?v=5.7"></script>
+  <script src="icons.js?v=6.0"></script>
+  <script src="core.js?v=6.0"></script>
+  <script src="data.js?v=6.0"></script>
+  <script src="app.js?v=6.0"></script>
   <script data-goatcounter="https://marina-herzliya.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

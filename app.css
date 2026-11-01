@@ -143,7 +143,9 @@ bdi { unicode-bidi: isolate; }
   font-size: 0.8125rem; font-weight: 500; border-radius: 12px;
 }
 .tab .ti { display: inline-flex; align-items: center; justify-content: center; width: min(3.5rem, 100%); height: 1.9rem; border-radius: 999px; }
-.tab .tl { max-width: 100%; overflow-wrap: anywhere; text-align: center; line-height: 1.2; }
+.tab .tl { max-width: 100%; text-align: center; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+/* חמש לשוניות בטקסט מוגדל: תווית קטנה יותר, בלי שבירת מילה באמצע */
+@media (max-width: 26em) { .view-tabs { padding-inline: 0.25rem; } .tab .tl { font-size: 0.6875rem; } }
 a.tab { text-decoration: none; }
 .tab.active { color: var(--accent-ink); font-weight: 700; }
 .tab.active .ti { background: var(--accent-soft); }
@@ -194,14 +196,14 @@ a.tab { text-decoration: none; }
 /* כרטיס החלטה – אותו רכיב בסיכום, בתכנון ובנתונים */
 .decision {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow);
-  padding: 0.85rem var(--pad); position: relative; overflow: hidden;
+  padding: 0.75rem var(--pad) 0.7rem; position: relative; overflow: hidden;
 }
 .decision::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--st); }
-.dc-scope { font-size: 0.875rem; color: var(--ink-2); margin: 0.1rem 0 0.35rem; }
+.dc-scope { font-size: 0.875rem; color: var(--ink-2); margin: 0.1rem 0 0.25rem; }
 .dc-head { display: flex; align-items: center; gap: 0.6rem; }
 .dc-ico { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--st-soft); color: var(--st); flex: none; }
 .dc-title { margin: 0; font-size: 1.375rem; line-height: 1.25; font-weight: 700; color: var(--st-ink); }
-.dc-why { margin: 0.35rem 0 0; color: var(--ink); font-size: 0.9375rem; }
+.dc-why { margin: 0.25rem 0 0; color: var(--ink); font-size: 0.9375rem; }
 .dc-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; align-items: center; }
 
 /* כרטיס מדד: אייקון ושם · מספר גדול · יחידה ומידע משלים */
@@ -318,7 +320,10 @@ a.tab { text-decoration: none; }
 .arrow { display: inline-block; font-style: normal; }
 
 /* ===== מסך תכנון ===== */
-.plan-form { display: grid; gap: 0.75rem; }
+.plan-form { display: grid; gap: 0.5rem 0.75rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.plan-form .f-times { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.plan-form .f-course { grid-row: 1; grid-column: 2; }
+.p-actions { margin-top: 0; }
 .plan-form label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.875rem; color: var(--ink-2); font-weight: 500; min-width: 0; }
 .f-times { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: 0.75rem; }
 select, input[type="number"] {
@@ -416,7 +421,8 @@ table.fc { border-collapse: separate; border-spacing: 0; direction: ltr; font-si
 .windy-ext { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; padding: 1.5rem; text-align: center; background: var(--surface); }
 .windy-ext .we-ico { color: var(--wave); }
 .windy-ext .we-t { margin: 0; font-weight: 600; font-size: 1.0625rem; }
-.windy-ext .we-s { margin: 0 0 0.5rem; max-width: 30rem; font-size: 0.9375rem; color: var(--ink-2); }
+.windy-ext .we-s { margin: 0.4rem 0 0; max-width: 30rem; font-size: 0.875rem; color: var(--ink-2); }
+.windy-ext .we-why > summary { cursor: pointer; color: var(--accent-ink); font-size: 0.875rem; min-height: 2.75rem; display: flex; align-items: center; justify-content: center; }
 
 /* ===== הגדרות ===== */
 body.modal-open { overflow: hidden; }
@@ -475,6 +481,8 @@ body.modal-open { overflow: hidden; }
   .p-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   .p-grid > .wide { grid-column: 1 / -1; }
   .plan-form { grid-template-columns: 1.2fr 1.6fr 1.2fr; align-items: end; }
+  .plan-form .f-times { grid-column: auto; }
+  .plan-form .f-course { grid-row: auto; grid-column: auto; }
   .windy-wrap { height: 36rem; }
   .wk-item { grid-template-columns: auto minmax(9rem, 12rem) minmax(0, 1fr) auto; }
   .wk-ico { grid-row: auto; }
@@ -490,6 +498,8 @@ body.modal-open { overflow: hidden; }
   .brand { flex: 1 1 100%; }
   .top-actions { margin-inline-start: auto; }
   .dc-title { font-size: 1.25rem; }
+  .plan-form { grid-template-columns: minmax(0, 1fr); }
+  .plan-form .f-course { grid-row: auto; grid-column: auto; }
   .day-tab { min-width: 0; padding-inline: 0.4rem; }
   .day-arrow { width: 1.75rem; }
   .hc-head .pill { white-space: normal; }

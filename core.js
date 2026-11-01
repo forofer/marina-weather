@@ -154,13 +154,16 @@ function seaDemand(r) {
   }
   if (cm != null && cm >= 60 && isNum(r.wavePer) && r.wavePer < 5) { extra++; why.push(`גלים קצרים ותלולים (${fmt(r.wavePer)} שנ׳)`); }
   const lvl = Math.min(3, base + extra);
-  return { lvl, t: DEMAND[lvl].t, d: DEMAND[lvl].d, why: lvl ? why : [], wHi, wLo, split };
+  // הערכה חלקית: חסרים גלים או רוח – הרמה היא מינימום, לא הערכה מלאה
+  const missing = [!isNum(r.wind) && 'רוח', cm == null && 'גלים'].filter(Boolean);
+  return { lvl, t: DEMAND[lvl].t, d: DEMAND[lvl].d, why: lvl ? why : [], wHi, wLo, split, partial: missing.length > 0, missing };
 }
 // אופי הים לטווח שעות: הרמה הגבוהה, והסיבות שלה
 function demandOf(rows) {
-  let best = null;
-  rows.forEach(r => { const d = seaDemand(r); if (d && (!best || d.lvl > best.lvl)) best = d; });
-  return best;
+  let best = null, partial = false;
+  const miss = new Set();
+  rows.forEach(r => { const d = seaDemand(r); if (!d) return; if (d.partial) { partial = true; d.missing.forEach(m => miss.add(m)); } if (!best || d.lvl > best.lvl) best = d; });
+  return best && { ...best, partial: partial, missing: [...miss] };
 }
 const isDemandReason = x => /^ים (מאתגר|קשה)/.test(x);
 

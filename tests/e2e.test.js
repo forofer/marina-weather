@@ -60,7 +60,7 @@ const clipped = p => p.evaluate(() => {
   console.log('נתונים ישנים ובלי רשת');
   {
     const { p, ctx, errs } = await open(b);
-    ok(/התחזית נמשכה/.test(await txt(p, '#updated')), 'מוצג גיל הנתונים');
+    ok(/הנתונים עודכנו/.test(await txt(p, '#updated')), 'מוצג גיל הנתונים');
     // ב-file:// כרומיום לפעמים מאבד את localStorage בטעינה מחדש – מחזירים את התחזית השמורה לפני שהאתר עולה
     const saved = await p.evaluate(() => localStorage.getItem('cache_v6'));
     await p.unrouteAll(); await p.route(/open-meteo|goatcounter|zgo|fonts\./, r => r.abort('internetdisconnected'));
@@ -145,6 +145,9 @@ const clipped = p => p.evaluate(() => {
     ok(cons.every(x => x.ok), 'ההפרש בין יציאה לחזרה תואם למספרים המוצגים', JSON.stringify(cons));
     await p.click('#p-save'); await p.waitForTimeout(200);
     ok(/נשמרה/.test(await txt(p, '#p-save')) && await p.isVisible('#p-saved .trip'), 'שמירה מוסיפה הפלגה לרשימה');
+    const sv = await p.evaluate(() => JSON.parse(localStorage.getItem('trips_v1')));
+    ok(sv.length === 1 && sv[0].fc && sv[0].fc.rows.length > 1 && sv[0].fc.rows[0].wind != null && sv[0].fc.savedAt, 'שמירת תכנית שומרת גם צילום של התחזית');
+    ok(/שמור תכנית הפלגה|התכנית נשמרה/.test(await txt(p, '#p-save')), 'הכפתור: "שמור תכנית הפלגה"');
     ok(errs.length === 0, 'אין שגיאות JS', errs.join(' | '));
     await ctx.close();
   }
@@ -282,6 +285,11 @@ const clipped = p => p.evaluate(() => {
       await p.click('#models-toggle'); await p.waitForTimeout(150);
       ok(!!(await p.$('.fc tr.mrow')), 'לחיצה פותחת את השוואת המודלים');
     } else ok(true, 'אין נתוני מודלים בדמה – אין כפתור');
+    const seaRows = () => p.$$eval('.fc th.lbl', x => x.map(t => t.textContent).filter(t => /סוול|גלי רוח|כיוון גלים/.test(t)).length);
+    ok(await seaRows() === 0 && /גלים \(ס״מ\)/.test(await txt(p, '.fc')) && /אופי הים/.test(await txt(p, '.fc')), 'גלים ואופי הים גלויים; פירוט הסוול מקופל');
+    await p.click('#sea-toggle'); await p.waitForTimeout(150);
+    ok(await seaRows() === 3, '"הצג פירוט גלים" פותח כיוון, גלי רוח וסוול');
+    ok(/כל היום/.test(await txt(p, '#summary')), 'בסיכום הנתונים כתוב שזה היום כולו');
     await ctx.close();
   }
 
@@ -334,7 +342,7 @@ const clipped = p => p.evaluate(() => {
     await p.click('.map-bar .seg[data-overlay="waves"]'); await p.waitForTimeout(100);
     ok(await p.$eval('.map-bar .seg[data-overlay="waves"]', e => e.getAttribute('aria-checked') === 'true'), 'בחירת שכבה מסומנת');
     ok(await p.isVisible('#windy-ext') && !(await p.isVisible('#windy-frame')), 'גלים: במקום מפה שמציגה רוח – הודעה ברורה');
-    ok(/Waves-waves\?waves/.test(await p.$eval('#windy-ext-a', e => e.href)) && /גלים/.test(await txt(p, '#windy-ext')), 'הקישור פותח את שכבת הגלים באתר Windy');
+    ok(/Waves-waves\?waves/.test(await p.$eval('#windy-ext-a', e => e.href)) && /גלים/.test(await txt(p, '#windy-ext')) && /למה\?/.test(await txt(p, '#windy-ext')), 'הקישור פותח את שכבת הגלים באתר Windy');
     await p.click('.map-bar .seg[data-overlay="swell1"]'); await p.waitForTimeout(100);
     ok(/Swell-swell1/.test(await p.$eval('#windy-ext-a', e => e.href)) && /סוול/.test(await txt(p, '#windy-ext')), 'סוול: הודעה וקישור לשכבת הסוול');
     await p.click('.map-bar .seg[data-overlay="gust"]'); await p.waitForTimeout(100);
