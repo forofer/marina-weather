@@ -79,6 +79,25 @@ function sailFile(trips) {
   ok(R.length === 1 && R[0].status === 'כבר ביומן' && R[0].act === 'skip' && await p.$eval('#imp-apply', x => x.disabled), 'אותה הפלגה – "כבר ביומן", ברירת מחדל דלג');
   await p.click('#import-panel [data-close]');
 
+  console.log('הפלגה ש-Google סימנה כ"הליכה"');
+  { await reset();
+    const seg = (st, en, type, pts) => [{ startTime: st, endTime: en, activity: { start: `geo:${pts[0][0]},${pts[0][1]}`, end: `geo:${pts[pts.length - 1][0]},${pts[pts.length - 1][1]}`, topCandidate: { type, probability: '0.7' } } },
+      { startTime: st, endTime: en, timelinePath: pts.map((q, i) => ({ point: `geo:${q[0]},${q[1]}`, durationMinutesOffsetFromStartTime: String(i * 5) })) }];
+    const out = (n, dir) => Array.from({ length: n }, (_, i) => { const f = dir > 0 ? i / (n - 1) : 1 - i / (n - 1); return [(32.1631 + 0.004 * f).toFixed(5), (34.7962 - 0.06 * f).toFixed(5)]; });
+    const file = [
+      ...seg('2026-11-02T07:27:00+02:00', '2026-11-02T07:40:00+02:00', 'in passenger vehicle', [[32.0801, 34.7801], [32.12, 34.80], [32.163, 34.80]]),
+      ...seg('2026-11-02T10:00:00+02:00', '2026-11-02T11:00:00+02:00', 'walking', out(13, 1)),
+      ...seg('2026-11-02T11:10:00+02:00', '2026-11-02T12:30:00+02:00', 'walking', out(17, -1)),
+      ...seg('2026-11-02T13:00:00+02:00', '2026-11-02T13:40:00+02:00', 'walking', [[32.165, 34.82], [32.166, 34.825], [32.167, 34.83], [32.168, 34.835]])];
+    await importFile(tmp('walk-sea.json', file));
+    const R3 = await rows();
+    ok(R3.length === 1 && R3[0].act === 'add' && /המסלול בים/.test(R3[0].txt) && /אוחדו 2 קטעים/.test(R3[0].txt), 'שני קטעי "הליכה" בים זוהו כהפלגה אחת; הליכה ונסיעה ביבשה לא', JSON.stringify(R3));
+    ok(/10:00–12:30/.test(R3[0].txt), 'זמני ההפלגה המאוחדת', R3[0].txt);
+    ok(/זוהו לפי המסלול בים/.test(await p.textContent('#imp-found')), 'הסבר בסיכום הממצאים');
+    await apply();
+    const jj = await J();
+    ok(jj.trips.length === 1 && jj.trips[0].segments.length === 2, 'נוספה ליומן כהפלגה אחת עם שני קטעים'); }
+
   console.log('חפיפה קצרה, קטע ומיזוג');
   await reset();
   await importFile(tmp('a.json', sailFile([['2026-09-01', '10:00', '12:00']]))); await apply();
@@ -300,7 +319,7 @@ function sailFile(trips) {
     for (let i = 0; i < 4000; i++) {
       const s = t0 + i * 3 * 3600000, e = s + 3600000, sail = i % 50 === 0;
       segs.push({ startTime: new Date(s).toISOString(), endTime: new Date(e).toISOString(), activity: { start: 'geo:32.16,34.79', end: 'geo:32.17,34.78', topCandidate: { type: sail ? 'sailing' : 'in passenger vehicle', probability: '0.8' } } });
-      segs.push({ startTime: new Date(s).toISOString(), endTime: new Date(e).toISOString(), timelinePath: Array.from({ length: 40 }, (_, k) => ({ point: `geo:${(32.16 + k * 0.0005).toFixed(5)},34.79`, durationMinutesOffsetFromStartTime: String(k * 1.5) })) });
+      segs.push({ startTime: new Date(s).toISOString(), endTime: new Date(e).toISOString(), timelinePath: Array.from({ length: 40 }, (_, k) => ({ point: `geo:${(32.16 + k * 0.0005).toFixed(5)},${sail ? 34.79 : 34.86}`, durationMinutesOffsetFromStartTime: String(k * 1.5) })) });
     }
     const f = tmp('big.json', segs);
     const t = Date.now();

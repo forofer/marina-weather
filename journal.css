@@ -134,3 +134,5 @@ details.jtrip[open] > summary { border-bottom: 1px solid var(--line); }
 .opt > summary { cursor: pointer; color: var(--accent-ink); font-size: 0.9375rem; min-height: 2.75rem; display: flex; align-items: center; }
 .jbanner.demo { background: var(--accent-soft); align-items: center; }
 .jbanner.demo .btn { margin-inline-start: auto; }
+
+.imp-row .relab { display: flex; align-items: center; gap: 0.25rem; color: var(--maybe-ink); font-weight: 500; }

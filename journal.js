@@ -493,14 +493,25 @@ function buildCands() {
       return candFor(t);
     });
   } else {
-    const acts = I.google.acts.filter(a => I.from ? (localDate(a.end) >= I.from && localDate(a.start) <= (I.to || I.from)) : SAIL_RE.test(a.type));
+    // הפלגות: מה ש-Google סימנה כשייט, וגם קטעים שסומנו אחרת (למשל "הליכה") אבל רוב המסלול שלהם בים
+    I.google.acts.forEach(a => { if (a.sea === undefined) a.sea = SAIL_RE.test(a.type) ? null : seaShare(a.path); });
+    const isSea = a => !SAIL_RE.test(a.type) && a.sea != null && a.sea >= 0.6;
+    let acts = I.google.acts.filter(a => I.from ? (localDate(a.end) >= I.from && localDate(a.start) <= (I.to || I.from)) : (SAIL_RE.test(a.type) || isSea(a)));
+    // בלי חיפוש תאריכים: קטעים צמודים (עד 30 דק׳ ביניהם) שאחד מהם זוהה לפי המסלול – כנראה אותה הפלגה, שנחתכה. מאחדים
+    if (!I.from) {
+      const asc = acts.slice().sort((x, y) => x.start - y.start), groups = [];
+      asc.forEach(a => { const g = groups[groups.length - 1]; if (g && a.start - Math.max(...g.map(x => x.end)) <= 30 * 60000 && (g.some(isSea) || isSea(a))) g.push(a); else groups.push([a]); });
+      acts = groups.map(g => g.length === 1 ? g[0] : { ...mergeActs(g), relabeled: g.filter(isSea).map(x => x.type), merged: g.length }).sort((x, y) => y.start - x.start);
+    }
     I.shown = acts.slice(0, 300);
     I.cands = I.shown.map(a => {
       const c = candFor(toJournalTrip(a));
       c.type = a.type;
-      if (I.from && LAND_RE.test(a.type)) c.act = 'skip';
+      if (isSea(a) || a.relabeled) { c.relabeled = a.relabeled || [a.type]; c.merged = a.merged; }
+      if (I.from && LAND_RE.test(a.type) && !isSea(a)) c.act = 'skip';
       return c;
     });
+    I.relabeled = I.cands.filter(c => c.relabeled).length;
   }
 }
 function candFor(t) {
@@ -522,14 +533,15 @@ function showStep2() {
   $('merge-row').classList.toggle('hidden', !I.from);
   const bad = I.kind === 'google' ? I.google.bad : I.bad;
   const total = I.kind === 'google' ? I.google.acts.length : I.trips.length;
-  $('imp-found').textContent = `${I.label}: ${I.kind === 'google' ? (I.from ? `${I.cands.length} קטעים בתאריכים שנבחרו` : `${I.cands.length === 1 ? 'נמצאה הפלגה אחת' : `נמצאו ${I.cands.length} הפלגות`} (מתוך ${total} קטעי תנועה)`) : `${I.cands.length} הפלגות בגיבוי`}${bad ? ` · ${bad} רשומות לא תקינות דולגו` : ''}${I.shown && I.google.acts.length > I.shown.length && I.from ? ' · מוצגים 300 הראשונים – צמצמו את התאריכים' : ''}.`;
+  $('imp-found').textContent = `${I.label}: ${I.kind === 'google' ? (I.from ? `${I.cands.length} קטעים בתאריכים שנבחרו` : `${I.cands.length === 1 ? 'נמצאה הפלגה אחת' : `נמצאו ${I.cands.length} הפלגות`} (מתוך ${total} קטעי תנועה)${I.relabeled ? ` · ${I.relabeled === 1 ? 'אחת מהן' : I.relabeled + ' מהן'} זוהו לפי המסלול בים, אף ש-Google סימנה אחרת` : ''}`) : `${I.cands.length} הפלגות בגיבוי`}${bad ? ` · ${bad} רשומות לא תקינות דולגו` : ''}${I.shown && I.google.acts.length > I.shown.length && I.from ? ' · מוצגים 300 הראשונים – צמצמו את התאריכים' : ''}.`;
   const list = $('imp-list');
   if (!I.cands.length) list.innerHTML = `<p class="empty">${I.kind === 'google' ? (I.from ? 'Google לא רשמה שום תנועה בתאריכים האלה. אפשר להוסיף את ההפלגה ביד.' : 'לא נמצאו קטעים ש-Google סימנה כשייט. נסו חיפוש לפי תאריכים למטה.') : 'אין הפלגות בגיבוי.'}</p>`;
   else list.innerHTML = I.cands.map((c, i) => {
     const s = c.s || tripStats(c.t);
     return `<div class="imp-row${c.act === 'skip' ? ' skip' : ''}" data-i="${i}">
       <span class="meta"><b>${fmtDate(c.t.start)} · <bdi dir="ltr" class="nw">${timeRange(c.t)}</bdi></b>
-        <small>${c.type ? esc(typeName(c.type)) + ' · ' : ''}${durTxt(s.durMin)} · ${nmTxt(s)}${s.suspicious.length ? ` · ${s.suspicious.length} נקודות חשודות` : ''}${c.t.notes && Object.keys(c.t.notes).length ? ' · עם הערות' : ''}</small>
+        ${c.relabeled ? `<small class="relab">${ico('info', 14)}Google סימנה "${esc([...new Set(c.relabeled)].map(typeName).join(', '))}" – אבל המסלול בים${c.merged ? ` · אוחדו ${c.merged} קטעים` : ''}</small>` : ''}
+        <small>${c.type && !c.relabeled ? esc(typeName(c.type)) + ' · ' : ''}${durTxt(s.durMin)} · ${nmTxt(s)}${s.suspicious.length ? ` · ${s.suspicious.length} נקודות חשודות` : ''}${c.t.notes && Object.keys(c.t.notes).length ? ' · עם הערות' : ''}</small>
         <span><span class="badge ${c.cls}">${esc(c.status)}</span>${c.match && c.status !== 'חדשה' ? ` <small>(${fmtDate(c.match.start)} ${timeRange(c.match)})</small>` : ''}</span></span>
       ${c.t.source !== 'google-timeline' ? `<span class="t-manual">${ico('book-open', 20)}</span>` : miniPath(s.pts)}
       <select aria-label="מה לעשות">${c.acts.map(a => `<option value="${a}"${a === c.act ? ' selected' : ''}>${a === 'add' && c.addLabel ? c.addLabel : ACT_TXT[a]}</option>`).join('')}</select>

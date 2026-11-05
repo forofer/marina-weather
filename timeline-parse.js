@@ -137,6 +137,42 @@ function cleanPath(path, maxKn = DEF_MAX_KN) {
   return { pts: p.filter((x, i) => !sus.has(i)), suspicious: p.filter((x, i) => sus.has(i)) };
 }
 
+/* ים או יבשה – לחוף ישראל. Google לפעמים מסווגת הפלגה כ"הליכה" (המהירות דומה), אז בודקים איפה המסלול עבר.
+   מצולע גס של היבשה (קו החוף מראש הנקרה לזיקים, כולל מפרץ חיפה); נקודה "בים" אם היא מחוץ ליבשה ורחוקה מקו החוף יותר מ-250 מ'
+   (כך שהליכה על המזח או על החוף לא נחשבת ים). מחוץ לאזור – לא יודעים (null). */
+const COAST = [[33.093, 35.104], [33.005, 35.088], [32.92, 35.068], [32.87, 35.075], [32.81, 35.04], [32.82, 35.0], [32.835, 34.965], [32.825, 34.955],
+  [32.79, 34.95], [32.70, 34.93], [32.61, 34.915], [32.50, 34.89], [32.44, 34.87], [32.33, 34.85], [32.2, 34.808], [32.163, 34.794], [32.10, 34.773],
+  [32.05, 34.75], [32.02, 34.74], [31.93, 34.69], [31.80, 34.63], [31.67, 34.55], [31.60, 34.51], [31.50, 34.43], [31.30, 34.22]];
+const LAND = [...COAST, [31.30, 35.6], [33.093, 35.6]];
+function inPoly(p, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i], [yj, xj] = poly[j];
+    if ((yi > p[0]) !== (yj > p[0]) && p[1] < (xj - xi) * (p[0] - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function distToCoast(p) {
+  const k = Math.cos(p[0] * Math.PI / 180), M = 111320;
+  let best = Infinity;
+  for (let i = 1; i < COAST.length; i++) {
+    const a = COAST[i - 1], b = COAST[i];
+    const ax = (a[1] - p[1]) * k * M, ay = (a[0] - p[0]) * M, bx = (b[1] - p[1]) * k * M, by = (b[0] - p[0]) * M;
+    const dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / ((dx * dx + dy * dy) || 1)));
+    best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return best;
+}
+function atSea(p) {
+  if (p[0] < 31.3 || p[0] > 33.1 || p[1] < 33.5 || p[1] > 35.6) return null;
+  return !inPoly(p, LAND) && distToCoast(p) > 250;
+}
+// כמה מהמסלול בים (0–1), או null כשאין מספיק נקודות באזור המוכר
+function seaShare(path) {
+  const v = (path || []).map(p => atSea(p)).filter(x => x != null);
+  return v.length >= 3 ? v.filter(Boolean).length / v.length : null;
+}
+
 // מרינות ונמלים לאורך החוף – לתיאור "מאיפה לאן"
 const MARINAS = [
   ['מרינה הרצליה', 32.1631, 34.7962], ['מרינה תל אביב', 32.0866, 34.7676], ['נמל יפו', 32.0533, 34.7503],
